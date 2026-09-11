@@ -1,0 +1,21 @@
+# dsh-structured-document bundle layer:本包作为 profile bundle 安装时自动应用。
+#
+# `name` 必须保持完整 npm 包名:client-modules 从 loader entry 名解析浏览器 bundle。
+# 可以在 profile 自己的 cordis.patch.yml 中覆盖本条目,例如指定默认场景模板:
+#
+#   - id: dsh-structured-document
+#     config:
+#       defaultProfile: project
+#
+# 官方安装方式(与本文件配合,无需手改 profile):
+#
+#   dsh plugin --profile <name> add dsh-structured-document@<version>
+#
+- insert:
+    - id: dsh-structured-document
+      name: dsh-structured-document
+      # loader 模式下 entry options 才是权威 inject（cordis-plugin-loader
+      # 只读 entry.options.inject，不读模块导出的 `export const inject`）。
+      # 与 src/index.ts 的 inject 保持一致。
+      inject: [tools, skills, sessions]
+      config: {}
