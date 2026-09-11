@@ -83,6 +83,9 @@ export function createAddNodeTool(deps: ToolDeps) {
         parent: nodeSummary(workspace, parent),
         position: committed.result.index,
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -137,6 +140,9 @@ export function createUpdateNodeTool(deps: ToolDeps) {
         node: nodeSummary(workspace, committed.result.node),
         changed: committed.result.changed,
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -178,6 +184,9 @@ export function createDeleteNodeTool(deps: ToolDeps) {
         removed_count: committed.result.removedCount,
         cleared_pointers: committed.result.clearedPointers ?? [],
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -217,6 +226,9 @@ export function createMoveNodeTool(deps: ToolDeps) {
         from: { parent_id: committed.result.fromParentId, index: committed.result.fromIndex },
         to: { parent_id: committed.result.toParentId, index: committed.result.toIndex },
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -266,6 +278,9 @@ export function createReorderNodeTool(deps: ToolDeps) {
         to_index: toIndex,
         moved: fromIndex !== toIndex,
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -308,6 +323,9 @@ export function createChangeRoleTool(deps: ToolDeps) {
         to_role: committed.result.toRole,
         removed_properties: committed.result.removedProperties,
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -353,6 +371,9 @@ export function createUpdatePropertyTool(deps: ToolDeps) {
         value: committed.result.removed ? undefined : committed.result.node.properties[args.key],
         removed: committed.result.removed,
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })

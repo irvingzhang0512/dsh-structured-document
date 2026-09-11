@@ -24,7 +24,7 @@ import {
 } from '../operations/ops.ts'
 import { validateDocument } from '../model/validation.ts'
 import { parseMarkdown, serializeMarkdown } from '../storage/markdown-adapter.ts'
-import { hashText, loadSidecar, saveSidecar, type DocumentStorage, type SidecarFile } from '../storage/storage.ts'
+import { createSidecarV2, hashText, loadSidecar, restoreSidecarV2, saveSidecar, type DocumentStorage } from '../storage/storage.ts'
 import { DocumentStateTracker } from './document-state.ts'
 import { resolveNodeRef, type NodeRefArgs } from './references.ts'
 
@@ -70,6 +70,8 @@ export class SessionWorkspace {
   private profile: ProfileDefinition | null = null
   /** 绑定(或最近一次保存)时磁盘文件内容的哈希,用于 sidecar 一致性。 */
   private loadedHash: string | null = null
+  /** v1 sidecar 已被采纳但尚未通过业务修改迁移；选择操作不得提前覆盖它。 */
+  private legacySidecarLoaded = false
   readonly state = new DocumentStateTracker()
   private undoStack: UndoEntry[] = []
   private readonly changeListeners = new Set<WorkspaceChangeListener>()
@@ -135,7 +137,7 @@ export class SessionWorkspace {
     const now = this.now()
     const fileName = basename(filePath)
 
-    if (sidecar !== null && sidecar.content_hash === hash) {
+    if (sidecar !== null && sidecar.content_hash === hash && sidecar.format_version === 1) {
       // 源文件未变化:直接采纳 sidecar 里的 IR(无损、ID 稳定)。
       this.doc = sidecar.document
       this.profile = requireProfile(this.doc.profile)
@@ -143,29 +145,39 @@ export class SessionWorkspace {
       this.state.restorePersisted(sidecar.state)
       this.state.dirty = false
       this.undoStack = []
+      this.legacySidecarLoaded = true
       this.emit({ kind: 'bound', filePath, revision: this.doc.revision, selectedNodeId: this.state.selectedNodeId })
       return { filePath, title: this.doc.title, profileId: this.doc.profile, nodeCount: this.countNodes(), source: 'sidecar', revision: this.doc.revision }
     }
 
-    // 首次装载或文件在外部被修改:重新解析,重新分配 ID。
-    const profileId = sidecar?.document.profile ?? this.options.defaultProfile
-    requireProfile(profileId)
+    // v2 始终从 Markdown 恢复业务字段；v1 哈希失效时仅沿用旧 Profile 作为回退。
+    const fallbackProfileId = sidecar?.format_version === 1 ? sidecar.document.profile : this.options.defaultProfile
+    requireProfile(fallbackProfileId)
     const parsed = parseMarkdown(text, {
-      profileId,
+      profileId: fallbackProfileId,
       now,
       createdBy: 'import:markdown',
       fileName,
     }, filePath)
-    this.doc = parsed.doc
+    this.doc = sidecar?.format_version === 2 && sidecar.content_hash === hash
+      ? restoreSidecarV2(parsed.doc, sidecar)
+      : parsed.doc
+    const profileId = parsed.profileId
     this.profile = requireProfile(profileId)
     this.state.currentFilePath = filePath
-    this.state.selectedNodeId = null
-    this.state.lastEditedNodeId = null
-    this.state.lastCreatedNodeId = null
+    if (sidecar?.format_version === 2 && sidecar.content_hash === hash) {
+      this.state.restorePersisted(sidecar.state)
+    } else {
+      this.state.selectedNodeId = null
+      this.state.lastEditedNodeId = null
+      this.state.lastCreatedNodeId = null
+    }
     this.state.dirty = false
     this.undoStack = []
+    this.legacySidecarLoaded = false
     this.emit({ kind: 'bound', filePath, revision: this.doc.revision, selectedNodeId: this.state.selectedNodeId })
-    return { filePath, title: this.doc.title, profileId, nodeCount: this.countNodes(), source: sidecar !== null ? 'reparsed' : 'fresh', revision: this.doc.revision }
+    const source = sidecar === null ? 'fresh' : sidecar.format_version === 2 && sidecar.content_hash === hash ? 'sidecar' : 'reparsed'
+    return { filePath, title: this.doc.title, profileId, nodeCount: this.countNodes(), source, revision: this.doc.revision }
   }
 
   /** 解绑当前文件(丢弃内存状态;磁盘文件不受影响)。 */
@@ -179,6 +191,7 @@ export class SessionWorkspace {
     this.state.dirty = false
     this.undoStack = []
     this.loadedHash = null
+    this.legacySidecarLoaded = false
     this.emit({ kind: 'unbound' })
   }
 
@@ -302,9 +315,9 @@ export class SessionWorkspace {
     this.state.dirty = true
     if (pointers !== undefined) pointers(result, this.state)
 
-    let saved: boolean
+    let persistence: PersistOutcome
     try {
-      saved = await this.persist(action, snapshot)
+      persistence = await this.persist(action, snapshot)
     } catch (error) {
       // 自动保存模式下文档已回滚到磁盘状态,Dirty 复位。
       if (this.options.autoSave) this.state.dirty = false
@@ -312,13 +325,13 @@ export class SessionWorkspace {
     }
     this.pushUndo(action, snapshot, result)
     this.emit({ kind: 'document', revision: this.document.revision, selectedNodeId: this.state.selectedNodeId })
-    return { result, revision: this.document.revision, saved }
+    return { result, revision: this.document.revision, ...persistence }
   }
 
   /** 保存(自动保存模式或显式保存);失败回滚并抛 SAVE_FAILED。 */
-  private async persist(action: string, rollback: StructuredDocument): Promise<boolean> {
+  private async persist(action: string, rollback: StructuredDocument): Promise<PersistOutcome> {
     if (!this.options.autoSave && action !== 'save_document') {
-      return false
+      return { saved: false, markdownUpdated: false, sidecarSaved: false }
     }
     const doc = this.document
     const filePath = this.state.currentFilePath
@@ -333,16 +346,17 @@ export class SessionWorkspace {
       await this.options.storage.writeFile(filePath, text)
       const contentHash = hashText(text)
       this.loadedHash = contentHash
-      const sidecar: SidecarFile = {
-        format_version: 1,
-        plugin: 'dsh-structured-document',
-        content_hash: contentHash,
-        document: doc,
-        state: this.state.toPersisted(),
+      const sidecar = createSidecarV2(doc, contentHash, this.state.toPersisted())
+      let sidecarSaved = true
+      try {
+        await saveSidecar(this.options.storage, filePath, sidecar)
+      } catch {
+        // Markdown 是事实来源。sidecar 失败不能回滚已经成功写入的业务数据。
+        sidecarSaved = false
       }
-      await saveSidecar(this.options.storage, filePath, sidecar)
       this.state.markSaved()
-      return true
+      this.legacySidecarLoaded = false
+      return { saved: true, markdownUpdated: true, sidecarSaved }
     } catch (error) {
       this.doc = rollback
       throw new DocumentOperationError(
@@ -454,8 +468,9 @@ export class SessionWorkspace {
     this.state.dirty = true
 
     // 注意:entry 仍在栈顶(peek);保存失败时直接抛错,栈保持原状。
+    let persistence: PersistOutcome
     try {
-      await this.persist('undo', rollback)
+      persistence = await this.persist('undo', rollback)
     } catch (error) {
       if (this.options.autoSave) this.state.dirty = false
       throw error
@@ -465,7 +480,7 @@ export class SessionWorkspace {
     return {
       result: { undoneAction: entry.action, restoredNodeId: restoredNode?.id ?? null },
       revision: this.document.revision,
-      saved: true,
+      ...persistence,
     }
   }
 
@@ -476,12 +491,12 @@ export class SessionWorkspace {
     }
     const wasDirty = this.state.dirty
     if (!wasDirty) {
-      return { result: { wasDirty }, revision: this.document.revision, saved: false }
+      return { result: { wasDirty }, revision: this.document.revision, saved: false, markdownUpdated: false, sidecarSaved: false }
     }
     const before = this.document
     const rollback = cloneDocument(before)
-    await this.persist('save_document', rollback)
-    return { result: { wasDirty }, revision: this.document.revision, saved: true }
+    const persistence = await this.persist('save_document', rollback)
+    return { result: { wasDirty }, revision: this.document.revision, ...persistence }
   }
 
   /**
@@ -491,14 +506,8 @@ export class SessionWorkspace {
   async selectNode(nodeId: string | null): Promise<void> {
     this.state.selectedNodeId = nodeId
     const filePath = this.state.currentFilePath
-    if (filePath !== null && this.doc !== null && this.loadedHash !== null) {
-      const sidecar: SidecarFile = {
-        format_version: 1,
-        plugin: 'dsh-structured-document',
-        content_hash: this.loadedHash,
-        document: this.doc,
-        state: this.state.toPersisted(),
-      }
+    if (filePath !== null && this.doc !== null && this.loadedHash !== null && !this.legacySidecarLoaded) {
+      const sidecar = createSidecarV2(this.doc, this.loadedHash, this.state.toPersisted())
       await saveSidecar(this.options.storage, filePath, sidecar).catch(() => {})
     }
     this.emit({ kind: 'selection', selectedNodeId: nodeId })
@@ -585,6 +594,14 @@ export interface CommittedResult<R> {
   result: R
   revision: number
   saved: boolean
+  markdownUpdated: boolean
+  sidecarSaved: boolean
+}
+
+interface PersistOutcome {
+  saved: boolean
+  markdownUpdated: boolean
+  sidecarSaved: boolean
 }
 
 // ─── 会话注册表 ─────────────────────────────────────────────────────────────

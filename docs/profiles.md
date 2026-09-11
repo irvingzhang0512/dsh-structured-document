@@ -1,6 +1,6 @@
 # 场景模板(Profile)
 
-模板定义文档的**角色(Role)与属性(Properties)推荐范围**,存放于 [`src/profiles/profiles.ts`](../src/profiles/profiles.ts)。节点的 `role` 与 `properties` 必须符合所属模板;模板 ID 记录在文档 IR 与 sidecar 中,重新解析时沿用。
+模板定义文档的**角色(Role)与属性(Properties)推荐范围**,存放于 [`src/profiles/profiles.ts`](../src/profiles/profiles.ts)。节点的 `role` 与 `properties` 必须符合所属模板；模板 ID 写入 Markdown Front Matter，重新解析时沿用。
 
 - 中文别名:`会议纪要` → `meeting`、`项目管理` → `project`、`思路整理` → `thinking`(`normalizeProfileId`)。
 - 每个模板内置通用角色 **note(笔记)** 作为默认角色:解析既有 Markdown 时无角色依据的节点一律 `note`(设计决策见 [架构](architecture.md#1-通用默认角色-note))。
@@ -56,4 +56,4 @@
 
 ## 模板选择
 
-V0.1 中模板由配置 `defaultProfile`(默认 `meeting`)或 sidecar 中已记录的 `profile` 决定;新文档解析时使用 `defaultProfile`。切换模板属于后续版本能力(需与当前文件集成协同,见 [架构](architecture.md#7-当前文件集成current-file-integration))。
+有 `dsh_profile` Front Matter 时以 Markdown 为准；旧文档回退到兼容 sidecar 中的 Profile，再回退到配置 `defaultProfile`（默认 `meeting`）。切换模板仍属于后续版本能力。

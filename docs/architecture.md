@@ -32,7 +32,7 @@ src/
   → withWorkspace(会话解析 → requireBound 懒绑定 → 外部修改检测)
   → 引用解析(resolveNodeRef:ID / 标题 / @指针 / relative / occurrence)
   → commit(快照 deep clone → mutator 变更工作副本 → validateDocument)
-  → persist(revision+1 → 序列化 → 临时文件原子写 → sidecar 写入 → loadedHash 更新)
+  → persist(revision+1 → 完整业务信息序列化到 Markdown → 临时文件原子写 → v2 sidecar 写入 → loadedHash 更新)
   → 状态指针更新 + 撤销快照入栈 → envelope(中文 message + 结构化字段)
 ```
 
@@ -47,8 +47,9 @@ src/
 ### 2. Sidecar(`<file>.sdoc.json`)与内容哈希
 
 - Markdown 是**权威数据**;sidecar 是加速与状态载体(ID 映射、状态指针、撤销外的会话状态)。
-- sidecar 记录 `content_hash`(SHA-256):哈希匹配 → 直接采纳持久化 IR(跨会话 ID 稳定);不匹配 → 用户在外部改过文件 → 以磁盘为准重新解析、重新分配 ID。
+- sidecar 记录 `content_hash`(SHA-256):业务字段始终从 Markdown 解析；哈希匹配时仅恢复稳定 ID 与状态，不匹配时重新分配 ID。
 - sidecar 可随时删除:删除后仅损失"跨会话 ID 延续",文档内容无损。
+- v1 sidecar 在打开时兼容读取，第一次业务修改时才把可见业务属性写入 Markdown 并生成 v2；单纯选择节点不会提前覆盖 v1。
 
 ### 3. 外部修改检测的时机与冲突取舍
 

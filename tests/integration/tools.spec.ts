@@ -215,7 +215,11 @@ describe('修改工具', () => {
         properties: { owner: '张三', status: '未开始', due_date: '周五' },
       })
       expect(added.success).toBe(true)
+      expect(added.markdownUpdated).toBe(true)
+      expect(added.sidecarSaved).toBe(true)
       const nodeId = (added.node as { node_id: string }).node_id
+      const visibleMarkdown = await readFile(harness.filePath, 'utf8')
+      expect(visibleMarkdown).toContain('| 待办 | 张三 | 未开始 | 周五 |')
 
       const updated = await call(harness, 'update_property', { node: nodeId, key: 'status', value: '进行中' })
       expect(updated.success).toBe(true)
@@ -393,7 +397,8 @@ describe('会话与错误路径', () => {
       expect(onDisk).toContain('落盘检查')
       const sidecar = JSON.parse(await readFile(`${harness.filePath}.sdoc.json`, 'utf8'))
       expect(sidecar.plugin).toBe('dsh-structured-document')
-      expect(sidecar.document.metadata.node_seq).toBeGreaterThan(6)
+      expect(sidecar.format_version).toBe(2)
+      expect(sidecar.document.node_seq).toBeGreaterThan(6)
     } finally {
       await harness.cleanup()
     }

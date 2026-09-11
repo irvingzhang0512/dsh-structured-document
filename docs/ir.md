@@ -63,14 +63,21 @@
 
 序列化是解析的逆过程且**幂等**:同一文档多次 `解析 → 序列化` 结果稳定;EOL 与列表标记保留。
 
+Profile 写入文档 Front Matter；非默认角色及其业务属性写入节点下方带 `<!-- dsh:node-properties -->` 标记的可见 Markdown 表格。普通表格没有该标记时仍作为正文处理。
+
 ## Sidecar(`<file>.sdoc.json`)
 
 ```jsonc
 {
-  "format_version": 1,
+  "format_version": 2,
   "plugin": "dsh-structured-document",
   "content_hash": "sha256:<hex>",   // 对应 Markdown 内容的哈希
-  "document": { /* StructuredDocument */ },
+  "document": {
+    "id": "sdoc-weekly",
+    "revision": 3,
+    "node_seq": 12,
+    "nodes": [ /* 路径、稳定 Node ID 与内部元信息；不含业务角色和属性 */ ]
+  },
   "state": {                         // 可选:跨会话状态恢复
     "selectedNodeId": "node_002",
     "lastEditedNodeId": "node_005",
@@ -79,4 +86,4 @@
 }
 ```
 
-装载规则:哈希匹配 → 采纳 sidecar IR 与状态;不匹配(或无 sidecar)→ 重新解析。sidecar 是可丢弃的缓存,删除后仅损失跨会话 ID 延续。
+装载规则:始终从 Markdown 解析业务结构；哈希匹配时从 v2 sidecar 恢复稳定 ID 与状态。v1 sidecar 仍可读取，但只在首次业务修改时迁移。sidecar 是可丢弃的缓存，删除后仅损失跨会话 ID 延续。

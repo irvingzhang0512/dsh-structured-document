@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { SessionWorkspace, WorkspaceRegistry, type KernelOptions } from '../../src/state/kernel.ts'
-import { NodeFsStorage } from '../../src/storage/storage.ts'
+import { hashText, NodeFsStorage } from '../../src/storage/storage.ts'
 import { DocumentOperationError } from '../../src/model/errors.ts'
 
 const NOW = new Date('2026-01-15T10:00:00Z')
@@ -69,6 +69,59 @@ describe('内核:当前文件绑定', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  it('删除 sidecar 后仅凭 Markdown 恢复 Profile、角色和业务属性', async () => {
+    const { options, dir } = await makeOptions()
+    await writeFixture(dir, 'weekly.md', MEETING_FIXTURE)
+    const first = new SessionWorkspace('s1', options)
+    await first.bindFile('weekly.md')
+    await first.addNode({
+      parentId: 'node_002', title: '排查登录超时', role: 'action_item',
+      properties: { owner: '张三', status: '进行中', due_date: '周五' },
+    })
+    await unlink(join(dir, 'weekly.md.sdoc.json'))
+
+    const second = new SessionWorkspace('s2', { ...options, defaultProfile: 'thinking' })
+    const result = await second.bindFile('weekly.md')
+    const restored = second.getDocument().doc.root.children[0].children.find(node => node.title === '排查登录超时')
+    expect(result.source).toBe('fresh')
+    expect(result.profileId).toBe('meeting')
+    expect(restored?.role).toBe('action_item')
+    expect(restored?.properties).toEqual({ owner: '张三', status: '进行中', due_date: '周五' })
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('v1 sidecar 打开时不改 Markdown，首次业务修改迁移为 Markdown + v2', async () => {
+    const { options, dir } = await makeOptions()
+    const filePath = await writeFixture(dir, 'weekly.md', MEETING_FIXTURE)
+    const seed = new SessionWorkspace('seed', options)
+    await seed.bindFile('weekly.md')
+    const legacyDoc = seed.getDocument().doc
+    const target = legacyDoc.root.children[0]
+    target.role = 'action_item'
+    target.properties = { owner: '张三', status: '未开始', due_date: '周五' }
+    await writeFile(`${filePath}.sdoc.json`, JSON.stringify({
+      format_version: 1,
+      plugin: 'dsh-structured-document',
+      content_hash: hashText(MEETING_FIXTURE),
+      document: legacyDoc,
+      state: { selected_node_id: target.id, last_edited_node_id: null, last_created_node_id: null },
+    }), 'utf8')
+
+    const workspace = new SessionWorkspace('s1', options)
+    await workspace.bindFile('weekly.md')
+    expect(await readFile(filePath, 'utf8')).toBe(MEETING_FIXTURE)
+    await workspace.selectNode(target.id)
+    expect(JSON.parse(await readFile(`${filePath}.sdoc.json`, 'utf8')).format_version).toBe(1)
+    await workspace.setProperty({ nodeId: target.id, key: 'status', value: '进行中' })
+    const migratedMarkdown = await readFile(filePath, 'utf8')
+    const migratedSidecar = JSON.parse(await readFile(`${filePath}.sdoc.json`, 'utf8'))
+    expect(migratedMarkdown).toContain('dsh_profile: meeting')
+    expect(migratedMarkdown).toContain('| 待办 | 张三 | 进行中 | 周五 |')
+    expect(migratedSidecar.format_version).toBe(2)
+    expect(migratedSidecar.document.root).toBeUndefined()
+    await rm(dir, { recursive: true, force: true })
+  })
+
   it('文件在外部被修改后:sidecar 失效,重新解析', async () => {
     const { options, dir } = await makeOptions()
     const filePath = await writeFixture(dir, 'weekly.md', MEETING_FIXTURE)
@@ -105,6 +158,7 @@ describe('内核:变更管线与自动保存', () => {
     const onDisk = await readFile(join(dir, 'weekly.md'), 'utf8')
     expect(onDisk).toContain('新增讨论')
     const sidecar = JSON.parse(await readFile(join(dir, 'weekly.md.sdoc.json'), 'utf8'))
+    expect(sidecar.format_version).toBe(2)
     expect(sidecar.document.revision).toBe(committed.revision)
     await rm(dir, { recursive: true, force: true })
   })
@@ -128,6 +182,31 @@ describe('内核:变更管线与自动保存', () => {
     expect(failing.getDocument().doc.revision).toBe(beforeRevision)
     expect(failing.getDocument().doc.root.children[0].children.some((child) => child.title === 'X')).toBe(false)
     expect(failing.state.dirty).toBe(false)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('sidecar 保存失败不回滚已写入 Markdown 业务数据', async () => {
+    const { options, dir } = await makeOptions()
+    await writeFixture(dir, 'weekly.md', MEETING_FIXTURE)
+    let writes = 0
+    const storage = {
+      readFile: options.storage.readFile.bind(options.storage),
+      writeFile: async (path: string, content: string) => {
+        writes += 1
+        if (writes === 2) throw new Error('sidecar 写入失败(模拟)')
+        await options.storage.writeFile(path, content)
+      },
+    }
+    const workspace = new SessionWorkspace('s1', { ...options, storage })
+    await workspace.bindFile('weekly.md')
+    const committed = await workspace.addNode({
+      parentId: 'node_002', title: '可见待办', role: 'action_item',
+      properties: { owner: '张三', status: '未开始', due_date: '周五' },
+    })
+    expect(committed.saved).toBe(true)
+    expect(committed.markdownUpdated).toBe(true)
+    expect(committed.sidecarSaved).toBe(false)
+    expect(await readFile(join(dir, 'weekly.md'), 'utf8')).toContain('| 待办 | 张三 | 未开始 | 周五 |')
     await rm(dir, { recursive: true, force: true })
   })
 

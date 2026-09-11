@@ -33,6 +33,9 @@ export function createUndoTool(deps: ToolDeps) {
         restored_node_id: committed.result.restoredNodeId ?? undefined,
         undo_remaining: workspace.undoDepth,
         revision: committed.revision,
+        saved: committed.saved,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })
@@ -47,7 +50,6 @@ export function createSaveDocumentTool(deps: ToolDeps) {
     parameters: {},
     output: {
       schema: outputSchema({
-        saved: { type: 'boolean', description: '本次是否实际写盘。' },
         was_dirty: { type: 'boolean', description: '保存前是否存在未保存修改。' },
       }),
       render: (_args, value) => {
@@ -62,6 +64,8 @@ export function createSaveDocumentTool(deps: ToolDeps) {
         saved: committed.saved,
         was_dirty: committed.result.wasDirty,
         revision: committed.revision,
+        markdownUpdated: committed.markdownUpdated,
+        sidecarSaved: committed.sidecarSaved,
       })
     }),
   })

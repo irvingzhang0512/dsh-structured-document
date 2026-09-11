@@ -12,6 +12,8 @@ DSH 结构化文档插件:让 Agent 通过**正常的中文**稳定地读取、�
 
 插件**不负责**文件树 / 文件选择 / 文件切换——"当前文件"由运行环境注入(见 [架构:当前文件集成](docs/architecture.md#当前文件集成current-file-integration))。
 
+Markdown 是业务事实来源：文档 Profile、节点角色以及负责人、状态、截止日期、进度会以 Front Matter 和可见属性表写回 Markdown。`.sdoc.json` 仅用于稳定 Node ID 与会话状态；删除它不会丢失业务结构。
+
 ## 安装
 
 以 DSH bundle 形式安装(插件包内带 `cordis.patch.yml`):

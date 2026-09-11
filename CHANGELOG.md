@@ -2,6 +2,13 @@
 
 本插件遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## Unreleased
+
+- Markdown 升级为业务事实来源：Profile 写入 Front Matter，角色与属性写入可见表格并支持双向解析。
+- sidecar 升级为 v2，只保存稳定 Node ID 与运行时状态；兼容读取 v1，并在首次业务修改时迁移。
+- 修改工具返回 `markdownUpdated` 与 `sidecarSaved`，sidecar 写入失败不再回滚已成功保存的 Markdown 业务数据。
+- 新增 Markdown 独立恢复、v1 迁移、属性转义和 sidecar 故障测试。
+
 ## 0.1.0(2026-01-15)
 
 首个版本:面向 DSH 的结构化文档插件(会议纪要 / 项目管理 / 思路整理)。

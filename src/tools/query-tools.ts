@@ -46,6 +46,9 @@ export const BASE_OUTPUT = {
   action: { type: 'string', required: true, description: '工具动作名。' },
   message: { type: 'string', required: true, description: '中文结果说明。' },
   revision: { type: 'integer', description: '当前文档版本。' },
+  saved: { type: 'boolean', description: '本次是否已持久化。' },
+  markdownUpdated: { type: 'boolean', description: '本次是否已把完整业务信息写入 Markdown。' },
+  sidecarSaved: { type: 'boolean', description: '内部 sidecar 状态是否同步成功；false 不表示 Markdown 业务数据丢失。' },
   error: { type: 'string', description: '失败时的错误码。' },
   candidates: {
     type: 'array',

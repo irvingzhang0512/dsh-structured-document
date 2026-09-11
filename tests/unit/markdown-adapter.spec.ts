@@ -156,4 +156,58 @@ describe('Markdown 适配器:序列化与往返', () => {
     const text = serializeMarkdown(doc)
     expect(text).toContain('- 新增项')
   })
+
+  it('待办的角色和属性写入可见表格并可往返解析', () => {
+    const doc = parse('# 周会\n## 登录体验\n')
+    const node = doc.root.children[0]
+    node.role = 'action_item'
+    node.properties = { owner: '张三', status: '进行中', due_date: '周五' }
+    const text = serializeMarkdown(doc)
+    expect(text).toContain('dsh_profile: meeting')
+    expect(text).toContain('<!-- dsh:node-properties -->')
+    expect(text).toContain('| 类型 | 负责人 | 状态 | 截止日期 |')
+    expect(text).toContain('| 待办 | 张三 | 进行中 | 周五 |')
+    const reparsed = parseMarkdown(text, { profileId: 'thinking', now: NOW, createdBy: 'test' }).doc
+    expect(reparsed.profile).toBe('meeting')
+    expect(reparsed.root.children[0].role).toBe('action_item')
+    expect(reparsed.root.children[0].properties).toEqual({ owner: '张三', status: '进行中', due_date: '周五' })
+  })
+
+  it('项目任务的进度以百分比显示并解析为整数', () => {
+    const doc = parseMarkdown('# 项目\n## 联调\n', { profileId: 'project', now: NOW, createdBy: 'test' }).doc
+    const node = doc.root.children[0]
+    node.role = 'task'
+    node.properties = { owner: '李四', progress: 30 }
+    const text = serializeMarkdown(doc)
+    expect(text).toContain('| 任务 | 李四 | 30% |')
+    const reparsed = parseMarkdown(text, { profileId: 'meeting', now: NOW, createdBy: 'test' }).doc
+    expect(reparsed.profile).toBe('project')
+    expect(reparsed.root.children[0].properties.progress).toBe(30)
+  })
+
+  it('普通 Markdown 表格保持正文而不被识别成属性表', () => {
+    const original = '# 文档\n## 数据\n| 类型 | 状态 |\n|---|---|\n| 普通数据 | 正常 |\n'
+    const doc = parse(original)
+    expect(doc.root.children[0].role).toBe('note')
+    expect(doc.root.children[0].content).toContain('| 类型 | 状态 |')
+  })
+
+  it('属性值中的管道符可见且往返不丢失', () => {
+    const doc = parse('# 周会\n## 待办\n')
+    const node = doc.root.children[0]
+    node.role = 'action_item'
+    node.properties = { owner: '张三|李四', status: '未开始' }
+    const text = serializeMarkdown(doc)
+    expect(text).toContain('张三\\|李四')
+    const reparsed = parse(text)
+    expect(reparsed.root.children[0].properties.owner).toBe('张三|李四')
+  })
+
+  it('保留用户已有 Front Matter 字段并补充 Profile', () => {
+    const doc = parse('---\nauthor: Irving\ntags: [meeting]\n---\n# 周会\n')
+    const text = serializeMarkdown(doc)
+    expect(text).toContain('author: Irving')
+    expect(text).toContain('tags: [meeting]')
+    expect(text).toContain('dsh_profile: meeting')
+  })
 })
