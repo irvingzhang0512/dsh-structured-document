@@ -1,10 +1,11 @@
 /**
- * 工具注册:把 14 个结构化文档工具注册到 ctx.tools。
+ * 工具注册:把 17 个结构化文档工具注册到 ctx.tools。
  *
  *   查看与定位:get_document / get_outline / find_node / select_node / get_selected_node
  *   基础修改:add_node / update_node / delete_node / move_node / reorder_node
  *   结构化修改:change_role / update_property
  *   历史:undo / save_document
+ *   完整事务:create_document / replace_document / apply_document_patch
  *
  * 没有万能 document(command) 工具:每个工具职责单一(需求第 14 章)。
  */
@@ -14,6 +15,7 @@ import type { ToolDeps } from './query-tools.ts'
 import { createGetDocumentTool, createGetOutlineTool, createFindNodeTool, createSelectNodeTool, createGetSelectedNodeTool } from './query-tools.ts'
 import { createAddNodeTool, createUpdateNodeTool, createDeleteNodeTool, createMoveNodeTool, createReorderNodeTool, createChangeRoleTool, createUpdatePropertyTool } from './mutation-tools.ts'
 import { createUndoTool, createSaveDocumentTool } from './history-tools.ts'
+import { createApplyDocumentPatchTool, createCreateDocumentTool, createReplaceDocumentTool } from './transaction-tools.ts'
 
 /** 全部工具名(供 SKILL/docs 契约测试核对)。 */
 export const STRUCTURED_DOCUMENT_TOOL_NAMES = [
@@ -31,6 +33,9 @@ export const STRUCTURED_DOCUMENT_TOOL_NAMES = [
   'update_property',
   'undo',
   'save_document',
+  'create_document',
+  'replace_document',
+  'apply_document_patch',
 ] as const
 
 export type StructuredDocumentToolName = (typeof STRUCTURED_DOCUMENT_TOOL_NAMES)[number]
@@ -58,6 +63,9 @@ export function registerStructuredDocumentTools(ctx: Context, registry: Workspac
   // 历史
   disposers.push(ctx.tools.register(createUndoTool(deps)))
   disposers.push(ctx.tools.register(createSaveDocumentTool(deps)))
+  disposers.push(ctx.tools.register(createCreateDocumentTool(deps)))
+  disposers.push(ctx.tools.register(createReplaceDocumentTool(deps)))
+  disposers.push(ctx.tools.register(createApplyDocumentPatchTool(deps)))
 
   return () => {
     for (const dispose of disposers) dispose()

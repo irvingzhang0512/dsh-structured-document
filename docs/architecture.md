@@ -20,7 +20,7 @@ src/
 │   ├── document-state.ts    状态指针(Selected / LastEdited / LastCreated / Dirty)
 │   ├── references.ts        节点引用解析(ID / 标题 / @指针 / occurrence / relative)
 │   └── kernel.ts            SessionWorkspace(变更管线)+ WorkspaceRegistry(会话隔离)
-├── tools/             14 个 Document Tools(envelope、渲染、注册)
+├── tools/             17 个 Document Tools(envelope、渲染、注册)
 ├── plugin/            Config、CurrentFileProvider 接缝、SKILL.md 装载
 └── index.ts           Cordis 插件入口(name / inject / Config / apply)
 ```
@@ -72,19 +72,19 @@ src/
 
 DSH 部分兄弟插件使用 `{ ok, code }` 惯例,本插件按需求采用 `{ success, action, message, revision?, ... }` / `{ success, error, message, candidates? }`:错误码、候选列表、版本号都是一等字段。`message` 一律中文(面向用户),`render` 投影给模型的也是中文。
 
-### 7. 当前文件集成(Current File Integration)——预留接缝
+### 7. 当前文件集成(Current File Integration)
 
-**边界**:插件不做文件树 / 文件选择 / 文件切换。会话的"当前文件"通过 `CurrentFileProvider` 接缝注入(`WorkspaceRegistry.attachCurrentFileProvider`),由 Controller / Sidebar 集成方实现;`config.currentFile` 仅提供静态调试通道。TODO(后续版本,需与 Controller 协同):
+**边界**:插件不做文件树 / 文件选择。会话的"当前文件"通过 `CurrentFileProvider` 接缝注入(`WorkspaceRegistry.attachCurrentFileProvider`),并由 `StructuredDocumentService.bindCurrentFile` 提供可等待的会话绑定。Controller / View / 工作台负责选择来源;`config.currentFile` 仅提供静态调试通道。后续仍可增强:
 
-- 监听编辑器文件切换事件 → 会话自动换绑;
+- 更多编辑器来源的文件切换事件;
 - 编辑器原位编辑(非工具路径)后的实时冲突提示;
 - Sidebar 大纲视图与 IR 的双向联动。
 
-在接缝落地前,若提供者返回空,工具如实返回 `NO_CURRENT_FILE`,引导用户先打开文档。
+提供者返回空且工作台未固定目标时,工具如实返回 `NO_CURRENT_FILE`,引导用户先指定文档。
 
-### 8. 工具粒度:14 个单一职责工具,拒绝万能 command
+### 8. 工具粒度:17 个明确职责工具,拒绝万能 command
 
-需求第 23 章明确禁止 `document command` 式万能工具(参数黑洞、校验稀薄、权限不可分)。14 个工具各自有精确的参数 schema(DSH `defineTool` const 字面量推断)与输出 schema;`add_node` 与 `update_property` 的划分与中文说法天然对应("加一个待办…" vs "负责人改成…")。
+需求第 23 章明确禁止 `document command` 式万能工具(参数黑洞、校验稀薄、权限不可分)。17 个工具各自有精确的参数 schema(DSH `defineTool` const 字面量推断)与输出 schema;三个事务工具分别承担新建、整篇整理和局部批量修改,单节点工具继续处理细粒度操作。
 
 ### 9. Skill 只做映射,不承担业务逻辑
 

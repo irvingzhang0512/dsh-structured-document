@@ -13,6 +13,7 @@ export type DocumentErrorCode =
   | 'INVALID_OPERATION'      // 操作不合法
   | 'SAVE_FAILED'            // 保存失败
   | 'VALIDATION_FAILED'      // 结构校验失败
+  | 'EXTERNAL_MODIFIED'      // 读取后目标版本被外部修改
 
 /** 候选节点(多候选歧义时返回给 LLM,由它向用户确认,禁止随机选择)。 */
 export interface NodeCandidate {

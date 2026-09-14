@@ -45,7 +45,7 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 
 插件挂载后自动注册:
 
-- **14 个 Document Tools**(见下方工具表);
+- **17 个 Document Tools**(见下方工具表);
 - 捆绑中文技能 **`structured-document`** —— `SKILL.md` 随 npm 包发布(`files` 含 `skills/`),插件挂载时自动注册进 `ctx.skills`(bundled),卸载时随插件自动注销。**无需单独安装技能。** 该生命周期有端到端测试保障(`tests/e2e/skill-install.spec.ts`,真实 cordis + 真实 SkillRegistry)。
 
 ## 快速上手
@@ -78,7 +78,7 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 
 ## 工具与技能
 
-### 工具一览(14 个)
+### 工具一览(17 个)
 
 所有工具共用结果 envelope:成功 `{ success, action, message, revision?, ... }`,失败 `{ success: false, error, message, candidates? }`;所有修改自动保存、可撤销。结果中的 `message` 一律中文,并带 `markdownUpdated` / `sidecarSaved` 标记,便于向用户如实说明持久化情况。
 
@@ -98,6 +98,9 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 | 修改 | `update_property` | 设置 / 删除属性(枚举与范围校验) |
 | 历史 | `undo` | 撤销最近一次修改(可连续) |
 | 历史 | `save_document` | 手动保存(自动保存默认开启) |
+| 完整事务 | `create_document` | 从完整结构新建文档并自动避开同名文件 |
+| 完整事务 | `replace_document` | 整篇整理,一次保存并可整体撤销 |
+| 完整事务 | `apply_document_patch` | 多项局部变化一次原子提交 |
 
 节点引用格式:`node_007` / 标题(先精确后包含)/ `@selected` / `@last_edited` / `@last_created` / `@root`,配合 `occurrence`(第几个,从 1 起;负数从末尾计数)与相对定位(`previous_sibling` 等)。歧义时绝不猜选。
 
@@ -124,7 +127,7 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 | [docs/usage.md](docs/usage.md) | 使用手册:状态、指代、歧义、撤销、保存 |
 | [docs/architecture.md](docs/architecture.md) | 架构与设计决策(管线、sidecar、当前文件集成) |
 | [docs/ir.md](docs/ir.md) | 文档 IR:节点 / 角色 / 属性 / 元数据 |
-| [docs/tools.md](docs/tools.md) | 14 个工具的参数与结果格式 |
+| [docs/tools.md](docs/tools.md) | 17 个工具的参数与结果格式 |
 | [docs/profiles.md](docs/profiles.md) | 三类模板的角色与属性表 |
 | [docs/skill.md](docs/skill.md) | SKILL.md 的装载、结构与映射规则 |
 | [docs/release-checklist.md](docs/release-checklist.md) | 发布检查(对照需求 28 条验收标准) |
@@ -138,7 +141,7 @@ npm test            # vitest(单元 / 集成 / 场景 / 端到端)
 npm run build       # 构建到 lib/
 ```
 
-测试分层:`tests/unit/`(IR、Markdown 适配器、内核、SKILL 装载)、`tests/integration/`(14 个工具经真实 `defineTool` 管线的集成行为)、`tests/scenarios/`(会议纪要 / 项目管理 / 思路整理三场景端到端:多轮中文指代、歧义、撤销、非法输入、保存失败、外部修改)、`tests/e2e/`(真实 cordis + 真实 SkillRegistry:SKILL 与工具随插件安装 / 卸载的生命周期)。
+测试分层:`tests/unit/`(IR、Markdown 适配器、内核、SKILL 装载)、`tests/integration/`(17 个工具经真实 `defineTool` 管线的集成行为)、`tests/scenarios/`(会议纪要 / 项目管理 / 思路整理三场景端到端:多轮中文指代、歧义、撤销、非法输入、保存失败、外部修改)、`tests/e2e/`(真实 cordis + 真实 SkillRegistry:SKILL 与工具随插件安装 / 卸载的生命周期)。
 
 ## 许可
 

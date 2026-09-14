@@ -13,17 +13,18 @@
  * undo 弹出快照恢复,并保证节点 ID 计数器单调不减(ID 永不复用)。
  */
 import { basename } from 'node:path'
-import type { DocNode, ProfileDefinition, StructuredDocument } from '../model/types.ts'
+import type { DocNode, DocumentNodeInput, DocumentPatchOperation, ProfileDefinition, StructuredDocument } from '../model/types.ts'
 import { DocumentOperationError } from '../model/errors.ts'
-import { cloneDocument, findNodeById, nodeBreadcrumb, walkNodes } from '../model/document.ts'
+import { allocateNodeId, cloneDocument, findNodeById, nodeBreadcrumb, walkNodes } from '../model/document.ts'
 import { requireProfile } from '../profiles/profiles.ts'
 import {
   opAddNode, opChangeRole, opDeleteNode, opMoveNode, opReorderNode, opSetProperty, opUpdateNode,
+  validatePropertiesForRole,
   type AddNodeResult, type ChangeRoleResult, type MoveNodeResult, type ReorderDirection,
   type SetPropertyResult, type UpdateNodeResult,
 } from '../operations/ops.ts'
 import { validateDocument } from '../model/validation.ts'
-import { parseMarkdown, serializeMarkdown } from '../storage/markdown-adapter.ts'
+import { createEmptyDocument, parseMarkdown, serializeMarkdown } from '../storage/markdown-adapter.ts'
 import { createSidecarV2, hashText, loadSidecar, restoreSidecarV2, saveSidecar, type DocumentStorage } from '../storage/storage.ts'
 import { DocumentStateTracker } from './document-state.ts'
 import { resolveNodeRef, type NodeRefArgs } from './references.ts'
@@ -49,7 +50,7 @@ export interface KernelOptions {
 export type WorkspaceChange =
   | { kind: 'bound'; filePath: string; revision: number; selectedNodeId: string | null }
   | { kind: 'unbound' }
-  | { kind: 'document'; revision: number; selectedNodeId: string | null }
+  | { kind: 'document'; revision: number; selectedNodeId: string | null, action?: string, summary?: DocumentMutationSummary, elapsedMs?: number }
   | { kind: 'selection'; selectedNodeId: string | null }
 
 /** 工作区变化监听器。 */
@@ -75,6 +76,7 @@ export class SessionWorkspace {
   readonly state = new DocumentStateTracker()
   private undoStack: UndoEntry[] = []
   private readonly changeListeners = new Set<WorkspaceChangeListener>()
+  private readonly completedRequests = new Map<string, { fingerprint: string, result: CommittedResult<DocumentMutationSummary> }>()
 
   constructor(sessionId: string, options: KernelOptions) {
     this.sessionId = sessionId
@@ -296,8 +298,10 @@ export class SessionWorkspace {
    * mutator 直接在工作文档上变更;返回操作结果。
    */
   private async commit<R>(action: string, mutator: (doc: StructuredDocument, now: Date) => R, pointers?: (result: R, state: DocumentStateTracker) => void): Promise<CommittedResult<R>> {
+    const startedAt = Date.now()
     const before = this.document
     const snapshot = cloneDocument(before)
+    const originalProfile = this.profile
     const now = this.now()
     let result: R
     try {
@@ -309,6 +313,7 @@ export class SessionWorkspace {
     const violations = validateDocument(before, this.currentProfile)
     if (violations.length > 0) {
       this.doc = snapshot
+      this.profile = originalProfile
       throw new DocumentOperationError('VALIDATION_FAILED', `结构校验失败:${violations.join(';')}`)
     }
 
@@ -320,12 +325,194 @@ export class SessionWorkspace {
       persistence = await this.persist(action, snapshot)
     } catch (error) {
       // 自动保存模式下文档已回滚到磁盘状态,Dirty 复位。
+      this.profile = originalProfile
       if (this.options.autoSave) this.state.dirty = false
       throw error
     }
     this.pushUndo(action, snapshot, result)
-    this.emit({ kind: 'document', revision: this.document.revision, selectedNodeId: this.state.selectedNodeId })
+    this.emit({
+      kind: 'document', revision: this.document.revision, selectedNodeId: this.state.selectedNodeId, action,
+      ...(isMutationSummary(result) ? { summary: result } : {}),
+      elapsedMs: Date.now() - startedAt,
+    })
     return { result, revision: this.document.revision, ...persistence }
+  }
+
+  private assertTarget(expectedRevision?: number, expectedFile?: string): void {
+    if (expectedFile !== undefined && expectedFile !== this.state.currentFilePath) {
+      throw new DocumentOperationError('INVALID_OPERATION', `整理目标已变化:请求目标为 ${expectedFile},当前目标为 ${this.state.currentFilePath ?? '无'}。请重新读取上下文。`)
+    }
+    if (expectedRevision !== undefined && expectedRevision !== this.document.revision) {
+      throw new DocumentOperationError('EXTERNAL_MODIFIED', `文档版本已变化:请求基于版本 ${expectedRevision},当前为 ${this.document.revision}。请重新读取后再修改。`)
+    }
+  }
+
+  private async idempotentMutation(
+    action: string,
+    requestId: string | undefined,
+    payload: unknown,
+    run: () => Promise<CommittedResult<DocumentMutationSummary>>,
+  ): Promise<CommittedResult<DocumentMutationSummary>> {
+    if (requestId === undefined || requestId === '') return run()
+    const fingerprint = JSON.stringify(payload)
+    const previous = this.completedRequests.get(requestId)
+    if (previous !== undefined) {
+      if (previous.fingerprint !== fingerprint) {
+        throw new DocumentOperationError('INVALID_OPERATION', `请求 ID ${requestId} 已被另一组 ${action} 参数使用。`)
+      }
+      return structuredClone(previous.result)
+    }
+    const result = await run()
+    this.completedRequests.set(requestId, { fingerprint, result: structuredClone(result) })
+    if (this.completedRequests.size > 128) this.completedRequests.delete(this.completedRequests.keys().next().value as string)
+    return result
+  }
+
+  /** Replace all document content in one validated, undoable transaction. */
+  async replaceDocument(args: {
+    title: string
+    profileId: string
+    root?: Omit<DocumentNodeInput, 'id' | 'children'>
+    children: DocumentNodeInput[]
+    expectedRevision?: number
+    expectedFile?: string
+    requestId?: string
+  }): Promise<CommittedResult<DocumentMutationSummary>> {
+    this.assertTarget(args.expectedRevision, args.expectedFile)
+    const profile = requireProfile(args.profileId)
+    return this.idempotentMutation('replace_document', args.requestId, args, () => this.commit('replace_document', (doc, now) => {
+      const previousIds = new Set([...walkNodes(doc)].map(node => node.id))
+      const previousBusiness = new Map([...walkNodes(doc)].map(node => [node.id, JSON.stringify({ title: node.title, content: node.content, role: node.role, properties: node.properties, children: node.children.map(child => child.id) })]))
+      const used = new Set<string>(['node_001'])
+      const rootInput = args.root
+      const root: DocNode = {
+        id: 'node_001',
+        title: args.title,
+        content: rootInput?.content ?? '',
+        role: rootInput?.role ?? profile.defaultRole,
+        properties: validateInputProperties(profile, rootInput?.role ?? profile.defaultRole, rootInput?.properties),
+        children: [],
+        metadata: { ...doc.root.metadata, updated_at: now.toISOString(), created_by: 'tool:replace_document' },
+      }
+      const next: StructuredDocument = {
+        ...doc,
+        title: args.title,
+        profile: profile.id,
+        root,
+        metadata: { ...doc.metadata, updated_at: now.toISOString() },
+      }
+      root.children = args.children.map(input => materializeInputNode(next, profile, input, now, used, previousIds, 'tool:replace_document'))
+      Object.assign(doc, next)
+      this.profile = profile
+      const nextNodes = [...walkNodes(next)]
+      const nextIds = new Set(nextNodes.map(node => node.id))
+      const added = nextNodes.filter(node => node.id !== 'node_001' && !previousIds.has(node.id)).map(node => node.id)
+      const updated = nextNodes.filter(node => previousBusiness.has(node.id) && previousBusiness.get(node.id) !== JSON.stringify({ title: node.title, content: node.content, role: node.role, properties: node.properties, children: node.children.map(child => child.id) })).map(node => node.id)
+      const deleted = [...previousIds].filter(id => id !== 'node_001' && !nextIds.has(id))
+      return summarizeMutation('replace', added, updated, deleted)
+    }, (summary, state) => {
+      state.lastEditedNodeId = this.document.root.id
+      state.lastCreatedNodeId = summary.added_node_ids.at(-1) ?? null
+      state.selectedNodeId = this.document.root.id
+      state.dirty = true
+    }))
+  }
+
+  /** Create and bind a new file with one complete initial document write. */
+  async createDocument(args: {
+    filePath: string
+    title: string
+    profileId: string
+    root?: Omit<DocumentNodeInput, 'id' | 'children'>
+    children: DocumentNodeInput[]
+  }): Promise<CommittedResult<DocumentMutationSummary>> {
+    const startedAt = Date.now()
+    const profile = requireProfile(args.profileId)
+    const now = this.now()
+    const doc = createEmptyDocument({ profileId: profile.id, now, createdBy: 'tool:create_document', fileName: basename(args.filePath) }, args.filePath)
+    doc.title = args.title
+    doc.root.title = args.title
+    doc.root.content = args.root?.content ?? ''
+    doc.root.role = args.root?.role ?? profile.defaultRole
+    doc.root.properties = validateInputProperties(profile, doc.root.role, args.root?.properties)
+    const used = new Set<string>(['node_001'])
+    doc.root.children = args.children.map(input => {
+      if (input.id !== undefined) throw new DocumentOperationError('INVALID_OPERATION', '新建文档不能指定节点 ID。')
+      return materializeInputNode(doc, profile, input, now, used, new Set(), 'tool:create_document')
+    })
+    const violations = validateDocument(doc, profile)
+    if (violations.length > 0) throw new DocumentOperationError('VALIDATION_FAILED', `结构校验失败:${violations.join(';')}`)
+    const text = serializeMarkdown(doc)
+    try {
+      if (this.options.storage.createFile !== undefined) await this.options.storage.createFile(args.filePath, text)
+      else await this.options.storage.writeFile(args.filePath, text)
+    } catch (error) {
+      throw new DocumentOperationError('SAVE_FAILED', `创建文档失败:${error instanceof Error ? error.message : String(error)}。`)
+    }
+    this.doc = doc
+    this.profile = profile
+    this.loadedHash = hashText(text)
+    this.state.currentFilePath = args.filePath
+    this.state.selectedNodeId = doc.root.id
+    this.state.lastEditedNodeId = doc.root.id
+    this.state.lastCreatedNodeId = [...walkNodes(doc)].at(-1)?.id ?? null
+    this.state.markSaved()
+    this.undoStack = []
+    let sidecarSaved = true
+    await saveSidecar(this.options.storage, args.filePath, createSidecarV2(doc, this.loadedHash, this.state.toPersisted())).catch(() => { sidecarSaved = false })
+    const summary = summarizeMutation('replace', [...walkNodes(doc)].slice(1).map(node => node.id), [], [])
+    this.emit({ kind: 'bound', filePath: args.filePath, revision: doc.revision, selectedNodeId: doc.root.id })
+    this.emit({ kind: 'document', revision: doc.revision, selectedNodeId: doc.root.id, action: 'create_document', summary, elapsedMs: Date.now() - startedAt })
+    return { result: summary, revision: doc.revision, saved: true, markdownUpdated: true, sidecarSaved }
+  }
+
+  /** Apply multiple typed operations as one validated, undoable transaction. */
+  async applyPatch(args: {
+    operations: DocumentPatchOperation[]
+    expectedRevision?: number
+    expectedFile?: string
+    requestId?: string
+  }): Promise<CommittedResult<DocumentMutationSummary>> {
+    this.assertTarget(args.expectedRevision, args.expectedFile)
+    if (args.operations.length === 0) throw new DocumentOperationError('INVALID_OPERATION', '批量修改至少需要一项操作。')
+    const profile = this.currentProfile
+    return this.idempotentMutation('apply_document_patch', args.requestId, args, () => this.commit('apply_document_patch', (doc, now) => {
+      const added: string[] = []
+      const updated: string[] = []
+      const deleted: string[] = []
+      for (const operation of args.operations) {
+        switch (operation.op) {
+          case 'add': {
+            const result = opAddNode(doc, profile, {
+              parentId: operation.parent_id, position: operation.position,
+              title: operation.node.title, content: operation.node.content,
+              role: operation.node.role, properties: operation.node.properties,
+            }, now, 'tool:apply_document_patch')
+            added.push(result.node.id)
+            appendInputChildren(doc, profile, result.node, operation.node.children ?? [], now, added)
+            break
+          }
+          case 'update': updated.push(opUpdateNode(doc, { nodeId: operation.node_id, title: operation.title, content: operation.content }, now).node.id); break
+          case 'delete': {
+            const result = opDeleteNode(doc, operation.node_id, now)
+            deleted.push(...collectIds(result.removed))
+            break
+          }
+          case 'move': opMoveNode(doc, { nodeId: operation.node_id, newParentId: operation.new_parent_id, position: operation.position }, now); updated.push(operation.node_id); break
+          case 'reorder': opReorderNode(doc, { nodeId: operation.node_id, position: operation.position, direction: operation.direction }, now); updated.push(operation.node_id); break
+          case 'change_role': updated.push(opChangeRole(doc, profile, { nodeId: operation.node_id, role: operation.role }, now).node.id); break
+          case 'set_property': updated.push(opSetProperty(doc, profile, { nodeId: operation.node_id, key: operation.key, value: operation.value }, now).node.id); break
+        }
+      }
+      return summarizeMutation('patch', added, [...new Set(updated)], deleted)
+    }, (summary, state) => {
+      const deleted = new Set(summary.deleted_node_ids)
+      state.clearDanglingAfterDelete(deleted)
+      state.lastCreatedNodeId = summary.added_node_ids.at(-1) ?? state.lastCreatedNodeId
+      state.lastEditedNodeId = summary.updated_node_ids.at(-1) ?? summary.added_node_ids.at(-1) ?? null
+      state.selectedNodeId = state.lastEditedNodeId
+      state.dirty = true
+    }))
   }
 
   /** 保存(自动保存模式或显式保存);失败回滚并抛 SAVE_FAILED。 */
@@ -437,6 +624,7 @@ export class SessionWorkspace {
 
   /** 撤销上一步操作(恢复快照 + 保存 + Revision+1)。 */
   async undo(): Promise<CommittedResult<{ undoneAction: string, restoredNodeId: string | null }>> {
+    const startedAt = Date.now()
     if (this.doc === null) {
       throw new DocumentOperationError('NO_CURRENT_FILE', '没有当前文件,没有可撤销的操作。')
     }
@@ -476,7 +664,7 @@ export class SessionWorkspace {
       throw error
     }
     this.undoStack.pop()
-    this.emit({ kind: 'document', revision: this.document.revision, selectedNodeId: this.state.selectedNodeId })
+    this.emit({ kind: 'document', revision: this.document.revision, selectedNodeId: this.state.selectedNodeId, action: 'undo', elapsedMs: Date.now() - startedAt })
     return {
       result: { undoneAction: entry.action, restoredNodeId: restoredNode?.id ?? null },
       revision: this.document.revision,
@@ -598,6 +786,60 @@ export interface CommittedResult<R> {
   sidecarSaved: boolean
 }
 
+export interface DocumentMutationSummary {
+  kind: 'replace' | 'patch'
+  added_node_ids: string[]
+  updated_node_ids: string[]
+  deleted_node_ids: string[]
+  counts: { added: number, updated: number, deleted: number }
+}
+
+function summarizeMutation(kind: 'replace' | 'patch', added: string[], updated: string[], deleted: string[]): DocumentMutationSummary {
+  return { kind, added_node_ids: added, updated_node_ids: updated, deleted_node_ids: deleted, counts: { added: added.length, updated: updated.length, deleted: deleted.length } }
+}
+
+function isMutationSummary(value: unknown): value is DocumentMutationSummary {
+  return typeof value === 'object' && value !== null && ((value as { kind?: unknown }).kind === 'replace' || (value as { kind?: unknown }).kind === 'patch')
+}
+
+function validateInputProperties(profile: ProfileDefinition, role: string, properties: DocumentNodeInput['properties']): Record<string, string | number | boolean> {
+  return validatePropertiesForRole(profile, role, properties)
+}
+
+function materializeInputNode(
+  doc: StructuredDocument,
+  profile: ProfileDefinition,
+  input: DocumentNodeInput,
+  now: Date,
+  used: Set<string>,
+  reusable: Set<string>,
+  createdBy: string,
+): DocNode {
+  const role = input.role ?? profile.defaultRole
+  const requested = input.id
+  if (requested !== undefined && (!reusable.has(requested) || used.has(requested))) {
+    throw new DocumentOperationError('INVALID_OPERATION', `不能复用节点 ID ${requested}:它不属于当前文档或已重复使用。`)
+  }
+  const id = requested ?? allocateNodeId(doc)
+  used.add(id)
+  const node: DocNode = {
+    id, title: input.title, content: input.content ?? '', role,
+    properties: validateInputProperties(profile, role, input.properties), children: [],
+    metadata: { created_at: now.toISOString(), updated_at: now.toISOString(), created_by: createdBy },
+  }
+  node.children = (input.children ?? []).map(child => materializeInputNode(doc, profile, child, now, used, reusable, createdBy))
+  return node
+}
+
+function appendInputChildren(doc: StructuredDocument, profile: ProfileDefinition, parent: DocNode, inputs: DocumentNodeInput[], now: Date, added: string[]): void {
+  for (const input of inputs) {
+    if (input.id !== undefined) throw new DocumentOperationError('INVALID_OPERATION', '新增子树不能指定节点 ID。')
+    const result = opAddNode(doc, profile, { parentId: parent.id, title: input.title, content: input.content, role: input.role, properties: input.properties }, now, 'tool:apply_document_patch')
+    added.push(result.node.id)
+    appendInputChildren(doc, profile, result.node, input.children ?? [], now, added)
+  }
+}
+
 interface PersistOutcome {
   saved: boolean
   markdownUpdated: boolean
@@ -613,11 +855,48 @@ interface PersistOutcome {
 export class WorkspaceRegistry {
   private readonly workspaces = new Map<string, SessionWorkspace>()
   private provider: CurrentFileProvider | null = null
+  private readonly fileTails = new Map<string, Promise<void>>()
+  private readonly sessionTails = new Map<string, Promise<void>>()
 
   constructor(private readonly options: KernelOptions) {}
 
-  /** TODO(当前文件集成 Current File Integration):由 Sidebar/编辑器集成方调用,
-   *  注入“当前文件”来源;插件自身不做文件选择与切换。 */
+  resolvePath(sessionId: string, rawPath: string): Promise<string> {
+    return this.options.resolvePath(sessionId, rawPath)
+  }
+
+  /** Serialize document transactions that address the same normalized file. */
+  async withFileLock<T>(filePath: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.fileTails.get(filePath) ?? Promise.resolve()
+    let release!: () => void
+    const current = new Promise<void>(resolve => { release = resolve })
+    const tail = previous.then(() => current)
+    this.fileTails.set(filePath, tail)
+    await previous
+    try {
+      return await task()
+    } finally {
+      release()
+      if (this.fileTails.get(filePath) === tail) this.fileTails.delete(filePath)
+    }
+  }
+
+  /** Serialize target binding and tool work within one conversation session. */
+  async withSessionLock<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.sessionTails.get(sessionId) ?? Promise.resolve()
+    let release!: () => void
+    const current = new Promise<void>(resolve => { release = resolve })
+    const tail = previous.then(() => current)
+    this.sessionTails.set(sessionId, tail)
+    await previous
+    try {
+      return await task()
+    } finally {
+      release()
+      if (this.sessionTails.get(sessionId) === tail) this.sessionTails.delete(sessionId)
+    }
+  }
+
+  /** 由 StructuredDocumentService 或其他集成方注入“当前文件”来源。 */
   attachCurrentFileProvider(provider: CurrentFileProvider): void {
     this.provider = provider
   }

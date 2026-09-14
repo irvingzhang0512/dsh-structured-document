@@ -1,6 +1,6 @@
 # Document Tools 参考
 
-14 个工具的参数与结果。所有工具共用结果 envelope(需求第 24 章):
+17 个工具的参数与结果。所有工具共用结果 envelope(需求第 24 章):
 
 ```jsonc
 // 成功
@@ -82,6 +82,20 @@
 ### save_document
 - 参数:无。
 - 返回:`saved`(是否实际写盘)、`was_dirty`。自动保存开启时一般无需调用。
+
+## 完整文档事务
+
+### create_document
+- 参数:`title`、`profile`、完整 `children` 树、稳定 `request_id`;可选 `directory` / `file_name` / `root`。
+- 自动生成新节点 ID,同名文件追加序号且不覆盖已有文件。成功后新文档成为当前文档。
+
+### replace_document
+- 参数:`title`、`profile`、完整 `children` 树、`expected_file`、`expected_revision`、`request_id`。
+- 整体重组只保存一次、版本只增加一次、形成一个撤销记录。显式复用的 ID 必须属于当前文档。
+
+### apply_document_patch
+- 参数:`operations`、`expected_file`、`expected_revision`、`request_id`。
+- 支持 `add/update/delete/move/reorder/change_role/set_property`;全部操作在工作副本通过后才保存,任一失败整批回滚。
 
 ## 参数校验
 

@@ -1,17 +1,15 @@
 /**
- * 当前文件(Current File)预留接口 —— 需求第 12.1 章。
+ * 当前文件(Current File)接口 —— 需求第 12.1 章。
  *
  * V0.1 不负责文件选择/切换/文件树/Sidebar。本插件假设“当前文件”由外部提供,
  * 这里只定义接缝:
  *
  *   - CurrentFileProvider:外部集成方实现,按会话返回当前文件路径;
  *   - StaticCurrentFileProvider:配置注入的静态实现(config.currentFile);
- *   - InMemoryCurrentFileStore:可编程实现(测试 / 未来桥接用)。
+ *   - InMemoryCurrentFileStore:可编程实现，供 StructuredDocumentService 与外部桥接使用。
  *
- * TODO(当前文件集成 Current File Integration):
- *   与 dsh-better-sidebar(或未来编辑器)桥接:订阅其 currentFile 变化事件,
- *   在本插件内调用 InMemoryCurrentFileStore.setCurrentFile(sessionId, path)。
- *   该桥接属于集成层,不在本插件 V0.1 范围内实现。
+ * dsh-discussion-workbench 通过 StructuredDocumentService 固定整理目标；
+ * 未安装工作台时，dsh-structured-document-view 仍可按编辑器当前文件驱动它。
  */
 import { isAbsolute, resolve } from 'node:path'
 

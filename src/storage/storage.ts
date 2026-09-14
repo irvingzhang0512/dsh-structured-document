@@ -14,6 +14,8 @@ import type { DocNode, StructuredDocument } from '../model/types.ts'
 export interface DocumentStorage {
   readFile(path: string): Promise<string>
   writeFile(path: string, content: string): Promise<void>
+  /** Create without replacing an existing file. */
+  createFile?(path: string, content: string): Promise<void>
 }
 
 /** 基于真实文件系统的存储实现。 */
@@ -32,6 +34,10 @@ export class NodeFsStorage implements DocumentStorage {
       await unlink(temp).catch(() => {})
       throw error
     }
+  }
+
+  async createFile(path: string, content: string): Promise<void> {
+    await writeFile(path, content, { encoding: 'utf8', flag: 'wx' })
   }
 }
 

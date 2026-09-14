@@ -61,6 +61,48 @@ describe('内核工作区事件', () => {
 })
 
 describe('结构化文档集成服务', () => {
+  it('bindCurrentFile 返回时已经完成目标切换', async () => {
+    const { dir, filePath } = await makeFixture()
+    const secondPath = join(dir, 'second.md')
+    await writeFile(secondPath, '# 第二份文档\n', 'utf8')
+    const registry = makeRegistry(dir)
+    const service = new StructuredDocumentServiceImpl({
+      registry,
+      store: new InMemoryCurrentFileStore(),
+      resolvePath: async (_sessionId, raw) => (isAbsolute(raw) ? raw : join(dir, raw)),
+    })
+    expect(await service.bindCurrentFile('s1', filePath)).toBe(true)
+    expect(await service.bindCurrentFile('s1', secondPath)).toBe(true)
+    expect(service.getDocumentSnapshot('s1')?.document.title).toBe('第二份文档')
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('目标切换等待同会话中的在途操作，解除目标后不再暴露旧文档', async () => {
+    const { dir, filePath } = await makeFixture()
+    const secondPath = join(dir, 'second.md')
+    await writeFile(secondPath, '# 第二份文档\n', 'utf8')
+    const registry = makeRegistry(dir)
+    const service = new StructuredDocumentServiceImpl({
+      registry,
+      store: new InMemoryCurrentFileStore(),
+      resolvePath: async (_sessionId, raw) => (isAbsolute(raw) ? raw : join(dir, raw)),
+    })
+    await service.bindCurrentFile('s1', filePath)
+    let release!: () => void
+    const held = registry.withSessionLock('s1', () => new Promise<void>(resolve => { release = resolve }))
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const switching = service.bindCurrentFile('s1', secondPath)
+    expect(service.getDocumentSnapshot('s1')?.document.title).toBe('防干烧项目周会')
+    release()
+    await held
+    expect(await switching).toBe(true)
+    expect(service.getDocumentSnapshot('s1')?.document.title).toBe('第二份文档')
+    service.setCurrentFile('s1', null)
+    await vi.waitFor(() => expect(service.getDocumentSnapshot('s1')).toBeNull())
+    expect(await service.ensureBound('s1')).toBe(false)
+    await rm(dir, { recursive: true, force: true })
+  })
+
   it('setCurrentFile 触发懒绑定并推送 bound 事件与快照', async () => {
     const { dir, filePath } = await makeFixture()
     const registry = makeRegistry(dir)

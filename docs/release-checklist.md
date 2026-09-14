@@ -42,7 +42,7 @@
 
 ## 已知边界(如实声明,非遗留缺陷)
 
-1. 当前文件集成(Controller/Sidebar 联动)为预留接缝 + TODO(需求边界内,见 architecture.md §7);
-2. 模板切换工具未含在 V0.1 的 14 个工具中(模板由配置或 sidecar 决定);
+1. 当前文件由 `StructuredDocumentService` 提供显式绑定接口,可由 Controller/View/工作台集成;
+2. `replace_document` 显式设置场景模板;局部修改继续沿用当前模板;
 3. 外部修改检测以内容哈希为准,检测点在每次工具调用(每次一次小文件 IO,正确性优先);
 4. 解析既有 Markdown 的节点默认 `note` 角色,不按标题猜角色(设计决策,architecture.md §1)。

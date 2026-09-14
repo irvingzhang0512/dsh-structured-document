@@ -141,6 +141,27 @@ export interface StructuredDocument {
   revision: number
 }
 
+/** LLM-facing node input used by whole-document and batch operations. */
+export interface DocumentNodeInput {
+  /** Existing node ID to preserve. Omit for a newly allocated ID. */
+  id?: NodeId
+  title: string
+  content?: string
+  role?: string
+  properties?: NodeProperties
+  children?: DocumentNodeInput[]
+}
+
+/** One atomic document patch operation. */
+export type DocumentPatchOperation =
+  | { op: 'add', parent_id: NodeId, position?: number, node: DocumentNodeInput }
+  | { op: 'update', node_id: NodeId, title?: string, content?: string }
+  | { op: 'delete', node_id: NodeId }
+  | { op: 'move', node_id: NodeId, new_parent_id: NodeId, position?: number }
+  | { op: 'reorder', node_id: NodeId, position?: number, direction?: 'top' | 'bottom' | 'up' | 'down' }
+  | { op: 'change_role', node_id: NodeId, role: string }
+  | { op: 'set_property', node_id: NodeId, key: string, value: PropertyValue | null }
+
 /** 节点在文档中的位置(用于删除/移动的撤销还原)。 */
 export interface NodeLocation {
   /** 父节点 ID(根节点的位置没有父节点)。 */

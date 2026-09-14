@@ -11,7 +11,7 @@ Skill 不是独立的安装单元,而是**插件的运行时贡献**:
 3. `registerSkill` 读取**包内** SKILL.md(从 lib 或 src 布局双路径定位)→ `ctx.skills.register()` 同步注册进全局层;
 4. 模型可见目录(`ctx.skills.list()`)即出现 `structured-document`;卸载插件时随 fiber 自动注销,无残留。
 
-端到端保障:`tests/e2e/skill-install.spec.ts` 用真实 cordis + 真实 `@deepseek-ai/dsh-skill` SkillRegistry 挂载本插件,验证注册、加载、14 个工具同生命周期与卸载清理。
+端到端保障:`tests/e2e/skill-install.spec.ts` 用真实 cordis + 真实 `@deepseek-ai/dsh-skill` SkillRegistry 挂载本插件,验证注册、加载、17 个工具同生命周期与卸载清理。
 
 注意:若用户本地目录(`.dsh` 项目/用户 skill 根)存在**同名** skill,按注册表规则本地条目优先于插件运行时条目——这是宿主的统一优先级设计,便于用户覆盖。
 
@@ -25,7 +25,7 @@ Skill **只做映射,不承担业务逻辑**(需求第 23 章):指代解析、�
 - **正文**:
   1. 铁律(禁止绕过工具、先定位后动手、歧义禁止随机选择、一次做全、可撤销、尊重模板约束);
   2. 中文指代 → 工具参数映射表(核心);
-  3. 14 个工具清单与使用时机;
+  3. 17 个工具清单与使用时机;
   4. 三类模板的角色属性表;
   5. 三场景常见说法 → 调用示例;
   6. 错误码 → 应对表;
@@ -58,4 +58,4 @@ Skill **只做映射,不承担业务逻辑**(需求第 23 章):指代解析、�
 
 ## 校验
 
-`tests/unit/skill.spec.ts` 验证:定位成功、frontmatter 解析、正文包含全部指代锚点(`@selected` / `@last_edited` / `@last_created` / `previous_sibling` / `occurrence` / `candidates` / `MULTIPLE_NODES_FOUND` / `undo`)与 14 个工具名、bundled source 注册成功。
+`tests/unit/skill.spec.ts` 验证:定位成功、frontmatter 解析、正文包含全部指代锚点(`@selected` / `@last_edited` / `@last_created` / `previous_sibling` / `occurrence` / `candidates` / `MULTIPLE_NODES_FOUND` / `undo`)与 17 个工具名、bundled source 注册成功。

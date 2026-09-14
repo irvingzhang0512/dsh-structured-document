@@ -91,10 +91,12 @@ export async function withWorkspace<T>(
     return fail(action, 'INVALID_OPERATION', '无法确定调用方会话:该工具需要由会话中的 Agent 调用。')
   }
   try {
-    const workspace = await deps.registry.requireBound(sessionId)
-    // 外部修改检测:文件在会话外被改动时以磁盘为准重新装载(需求第 12 章)。
-    await workspace.refreshIfExternalChanged()
-    return await fn(workspace)
+    return await deps.registry.withSessionLock(sessionId, async () => {
+      const workspace = await deps.registry.requireBound(sessionId)
+      // 外部修改检测:文件在会话外被改动时以磁盘为准重新装载(需求第 12 章)。
+      await workspace.refreshIfExternalChanged()
+      return fn(workspace)
+    })
   } catch (error) {
     return failFromError(action, error)
   }

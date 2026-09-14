@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-`dsh-structured-document` 是一个 DSH 插件:通过结构化文档 IR 与 14 个 Document Tools,让 Agent 用中文自然语言稳定地读取、定位、修改和重组结构化文档(会议纪要 / 项目管理 / 思路整理),支持"这个 / 刚才那个 / 刚加的 / 上一条 / 第二个"等中文指代,所有修改自动保存、可撤销。
+`dsh-structured-document` 是一个 DSH 插件:通过结构化文档 IR 与 17 个 Document Tools,让 Agent 用中文自然语言稳定地读取、定位、修改和重组结构化文档(会议纪要 / 项目管理 / 思路整理),支持"这个 / 刚才那个 / 刚加的 / 上一条 / 第二个"等中文指代,所有修改自动保存、可撤销。
 
 权威需求文档:`requirements.txt`(V0.1,42 章);架构决策:`docs/architecture.md`。
 

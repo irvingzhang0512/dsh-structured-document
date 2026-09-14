@@ -130,7 +130,7 @@ The detailed docs are written in Chinese:
 | [docs/usage.md](docs/usage.md) | User manual: state, references, ambiguity, undo, saving |
 | [docs/architecture.md](docs/architecture.md) | Architecture & design decisions (pipeline, sidecar, current-file integration) |
 | [docs/ir.md](docs/ir.md) | Document IR: nodes / roles / properties / metadata |
-| [docs/tools.md](docs/tools.md) | The 14 tools: parameters and result formats |
+| [docs/tools.md](docs/tools.md) | The 17 tools: parameters and result formats |
 | [docs/profiles.md](docs/profiles.md) | Role & property tables for the three profiles |
 | [docs/skill.md](docs/skill.md) | How SKILL.md is loaded, structured, and mapped |
 | [docs/release-checklist.md](docs/release-checklist.md) | Release checklist (against the 28 acceptance criteria) |
@@ -144,7 +144,7 @@ npm test            # vitest (unit / integration / scenario / e2e)
 npm run build       # build to lib/
 ```
 
-Test layers: `tests/unit/` (IR, Markdown adapter, kernel, skill loading), `tests/integration/` (the 14 tools through the real `defineTool` pipeline), `tests/scenarios/` (end-to-end Chinese sessions for all three profiles: multi-turn references, ambiguity, undo, invalid input, save failure, external edits), and `tests/e2e/` (real cordis + real SkillRegistry: skill and tool lifecycle across plugin mount/unmount).
+Test layers: `tests/unit/` (IR, Markdown adapter, kernel, skill loading), `tests/integration/` (the 17 tools through the real `defineTool` pipeline), `tests/scenarios/` (end-to-end Chinese sessions for all three profiles: multi-turn references, ambiguity, undo, invalid input, save failure, external edits), and `tests/e2e/` (real cordis + real SkillRegistry: skill and tool lifecycle across plugin mount/unmount).
 
 ## License
 

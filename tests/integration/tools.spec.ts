@@ -1,6 +1,6 @@
 /**
  * 工具层集成测试:通过与 DSH 工具注册表相同的调用方式(execute + 校验参数)
- * 驱动 14 个结构化文档工具,验证 envelope、错误码、状态维护与真实文件读写。
+ * 驱动 17 个结构化文档工具,验证 envelope、错误码、状态维护与真实文件读写。
  */
 import { describe, expect, it } from 'vitest'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -99,15 +99,80 @@ async function call(harness: Harness, name: string, args: Record<string, unknown
 }
 
 describe('工具注册', () => {
-  it('注册 14 个职责明确的工具,无万能 command 工具', async () => {
+  it('注册 17 个职责明确的工具,无万能 command 工具', async () => {
     const harness = await makeHarness(MEETING)
     try {
       expect(harness.tools.registered.map((tool) => tool.name).sort()).toEqual([...STRUCTURED_DOCUMENT_TOOL_NAMES].sort())
       expect(STRUCTURED_DOCUMENT_TOOL_NAMES).not.toContain('document')
-      expect(STRUCTURED_DOCUMENT_TOOL_NAMES).toHaveLength(14)
+      expect(STRUCTURED_DOCUMENT_TOOL_NAMES).toHaveLength(17)
     } finally {
       await harness.cleanup()
     }
+  })
+})
+
+describe('整篇与批量事务工具', () => {
+  it('replace_document 一次提交整篇结构且一次撤销全部恢复', async () => {
+    const harness = await makeHarness(MEETING)
+    try {
+      const result = await call(harness, 'replace_document', {
+        title: '正式周会纪要', profile: 'meeting', expected_revision: 1,
+        expected_file: harness.filePath, request_id: 'replace-001',
+        children: [
+          { title: '上线安排', role: 'topic', children: [
+            { title: '周五发布', role: 'decision' },
+            { title: '准备检查清单', role: 'action_item', properties: { owner: '张三', status: '未开始' } },
+          ] },
+        ],
+      })
+      expect(result.success).toBe(true)
+      expect(result.revision).toBe(2)
+      expect((result.summary as { counts: { added: number } }).counts.added).toBe(3)
+      const undo = await call(harness, 'undo')
+      expect(undo.success).toBe(true)
+      const restored = await readFile(harness.filePath, 'utf8')
+      expect(restored).toContain('# 防干烧项目周会')
+      expect(restored).toContain('砂锅误报较多')
+      expect(restored).not.toContain('正式周会纪要')
+    } finally { await harness.cleanup() }
+  })
+
+  it('apply_document_patch 原子执行多项修改并阻止陈旧版本', async () => {
+    const harness = await makeHarness(MEETING)
+    try {
+      const outline = await call(harness, 'get_outline')
+      const rows = outline.outline as Array<{ node_id: string, title: string }>
+      const target = rows.find(row => row.title === '砂锅误报较多')!
+      const result = await call(harness, 'apply_document_patch', {
+        expected_revision: 1, expected_file: harness.filePath, request_id: 'patch-001',
+        operations: [
+          { op: 'change_role', node_id: target.node_id, role: 'problem' },
+          { op: 'add', parent_id: target.node_id, node: { title: '补充验证', role: 'action_item', properties: { owner: '李四' } } },
+        ],
+      })
+      expect(result.success).toBe(true)
+      expect(result.revision).toBe(2)
+      const stale = await call(harness, 'apply_document_patch', {
+        expected_revision: 1, expected_file: harness.filePath, request_id: 'patch-002',
+        operations: [{ op: 'update', node_id: target.node_id, title: '不应写入' }],
+      })
+      expect(stale.success).toBe(false)
+      expect(stale.error).toBe('EXTERNAL_MODIFIED')
+    } finally { await harness.cleanup() }
+  })
+
+  it('create_document 自动避开同名文件并打开新文档', async () => {
+    const harness = await makeHarness(MEETING)
+    try {
+      await writeFile(join(harness.dir, '项目计划.md'), '# 旧文件\n', 'utf8')
+      const result = await call(harness, 'create_document', {
+        title: '项目计划', profile: 'project', request_id: 'create-001',
+        children: [{ title: '完成联调', role: 'task', properties: { status: '未开始' } }],
+      })
+      expect(result.success).toBe(true)
+      expect(result.file_path).toBe(join(harness.dir, '项目计划 (2).md'))
+      expect(await readFile(String(result.file_path), 'utf8')).toContain('完成联调')
+    } finally { await harness.cleanup() }
   })
 })
 

@@ -37,8 +37,8 @@ describe('SKILL.md 装载', () => {
     for (const keyword of ['@selected', '@last_edited', '@last_created', 'previous_sibling', 'occurrence', 'candidates', 'MULTIPLE_NODES_FOUND', 'undo']) {
       expect(skill!.content).toContain(keyword)
     }
-    // 工具清单覆盖全部 14 个工具。
-    for (const tool of ['get_document', 'get_outline', 'find_node', 'select_node', 'get_selected_node', 'add_node', 'update_node', 'delete_node', 'move_node', 'reorder_node', 'change_role', 'update_property', 'undo', 'save_document']) {
+    // 工具清单覆盖全部 17 个工具。
+    for (const tool of ['get_document', 'get_outline', 'find_node', 'select_node', 'get_selected_node', 'add_node', 'update_node', 'delete_node', 'move_node', 'reorder_node', 'change_role', 'update_property', 'undo', 'save_document', 'create_document', 'replace_document', 'apply_document_patch']) {
       expect(skill!.content).toContain(tool)
     }
   })

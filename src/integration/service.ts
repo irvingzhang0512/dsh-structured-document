@@ -8,7 +8,7 @@
  *   推送当前文件变化)与文档/选中变化订阅(subscribe);
  * - 文档快照(getDocumentSnapshot)同步可得(工作区文档在内核内存中);
  * - 本插件自身不做文件选择/切换(需求第 12.1 章边界),本服务就是
- *   current-file.ts 预留接缝(TODO 当前文件集成)的落点。
+ *   current-file.ts 接缝的宿主集成落点。
  */
 import type { StructuredDocument } from '../model/types.ts'
 import { InMemoryCurrentFileStore } from '../plugin/current-file.ts'
@@ -19,6 +19,10 @@ export interface DocumentSnapshot {
   document: StructuredDocument
   selectedNodeId: string | null
   currentFile: string | null
+  lastEditedNodeId: string | null
+  lastCreatedNodeId: string | null
+  dirty: boolean
+  undoDepth: number
 }
 
 /** 服务可用的日志面。 */
@@ -43,9 +47,11 @@ export interface StructuredDocumentService {
   readonly id: 'dsh-structured-document'
   /**
    * 设置(或清除)会话的当前文件;触发懒绑定/按需重绑。
-   * 清除只清"当前文件"指针,不自动解绑内存文档。
+   * 清除会在当前会话操作完成后解绑，阻止后续工具写入旧目标。
    */
   setCurrentFile(sessionId: string, filePath: string | null): void
+  /** Set and fully bind a file before returning; used by transactional coordinators. */
+  bindCurrentFile(sessionId: string, filePath: string): Promise<boolean>
   /** 读取会话当前文件(未设置返回 null)。 */
   getCurrentFile(sessionId: string): string | null
   /** 选择节点(仅更新状态指针,不修改文档)。 */
@@ -56,6 +62,8 @@ export interface StructuredDocumentService {
   subscribe(sessionId: string, listener: WorkspaceChangeListener): () => void
   /** 同步读取会话文档快照;未绑定返回 null。 */
   getDocumentSnapshot(sessionId: string): DocumentSnapshot | null
+  /** Undo the latest document transaction in this live host process. */
+  undo(sessionId: string): Promise<{ revision: number, saved: boolean, sidecarSaved: boolean, undoneAction: string }>
 }
 
 /** 服务实现。 */
@@ -86,6 +94,10 @@ export class StructuredDocumentServiceImpl implements StructuredDocumentService 
       document: structuredClone(workspace.document),
       selectedNodeId: workspace.state.selectedNodeId,
       currentFile: workspace.state.currentFilePath,
+      lastEditedNodeId: workspace.state.lastEditedNodeId,
+      lastCreatedNodeId: workspace.state.lastCreatedNodeId,
+      dirty: workspace.state.dirty,
+      undoDepth: workspace.undoDepth,
     }
   }
 
@@ -93,28 +105,52 @@ export class StructuredDocumentServiceImpl implements StructuredDocumentService 
     return this.store.getCurrentFile(sessionId)
   }
 
+  async undo(sessionId: string): Promise<{ revision: number, saved: boolean, sidecarSaved: boolean, undoneAction: string }> {
+    return this.registry.withSessionLock(sessionId, async () => {
+      const workspace = await this.registry.requireBound(sessionId)
+      const filePath = workspace.state.currentFilePath
+      if (filePath === null) throw new Error('没有可撤销的整理目标。')
+      return this.registry.withFileLock(filePath, async () => {
+        await workspace.refreshIfExternalChanged()
+        const committed = await workspace.undo()
+        return { revision: committed.revision, saved: committed.saved, sidecarSaved: committed.sidecarSaved, undoneAction: committed.result.undoneAction }
+      })
+    })
+  }
+
   selectNode(sessionId: string, nodeId: string | null): void {
-    const workspace = this.registry.get(sessionId)
-    if (!workspace.bound) return
-    void workspace.selectNode(nodeId)
+    void this.registry.withSessionLock(sessionId, async () => {
+      const workspace = this.registry.get(sessionId)
+      if (!workspace.bound) return
+      await workspace.selectNode(nodeId)
+    })
   }
 
   setCurrentFile(sessionId: string, filePath: string | null): void {
     if (filePath === null || filePath === '') {
       this.store.setCurrentFile(sessionId, null)
-      return // 不自动解绑:保留内存文档,避免意外丢失状态。
+      void this.registry.withSessionLock(sessionId, async () => {
+        this.registry.get(sessionId).unbindFile()
+      })
+      return
     }
+    void this.bindCurrentFile(sessionId, filePath)
+  }
+
+  async bindCurrentFile(sessionId: string, filePath: string): Promise<boolean> {
     this.store.setCurrentFile(sessionId, filePath)
-    void this.syncBound(sessionId, filePath)
+    return this.registry.withSessionLock(sessionId, () => this.syncBound(sessionId, filePath))
   }
 
   async ensureBound(sessionId: string): Promise<boolean> {
-    try {
-      await this.registry.requireBound(sessionId)
-      return true
-    } catch {
-      return false
-    }
+    return this.registry.withSessionLock(sessionId, async () => {
+      try {
+        await this.registry.requireBound(sessionId)
+        return true
+      } catch {
+        return false
+      }
+    })
   }
 
   subscribe(sessionId: string, listener: WorkspaceChangeListener): () => void {
@@ -122,20 +158,23 @@ export class StructuredDocumentServiceImpl implements StructuredDocumentService 
   }
 
   /** 确保工作区绑定 filePath:未绑定则懒绑定;已绑定且路径变化则重绑。 */
-  private async syncBound(sessionId: string, filePath: string): Promise<void> {
+  private async syncBound(sessionId: string, filePath: string): Promise<boolean> {
     try {
       const workspace = this.registry.get(sessionId)
       if (!workspace.bound) {
         await this.registry.requireBound(sessionId)
-        return
+        const resolved = await this.resolvePath(sessionId, filePath)
+        return this.registry.get(sessionId).state.currentFilePath === resolved
       }
       const resolved = await this.resolvePath(sessionId, filePath)
       if (workspace.state.currentFilePath !== resolved) {
         await workspace.bindFile(resolved)
       }
+      return workspace.state.currentFilePath === resolved
     } catch (error) {
       // 绑定失败(文件不存在/解析失败等):保留当前状态,记日志。
       this.logger?.warn?.(`[structured-document] 绑定当前文件失败(${sessionId}, ${filePath}):${error instanceof Error ? error.message : String(error)}`)
+      return false
     }
   }
 }

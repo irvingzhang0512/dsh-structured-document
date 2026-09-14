@@ -6,7 +6,7 @@
  * 验证:
  *   1. 插件挂载后 skill 立即出现在 ctx.skills 目录(model 可见);
  *   2. ctx.skills.get 能取到完整 SKILL.md 正文与元数据;
- *   3. 14 个工具随同一插件一并注册;
+ *   3. 17 个工具随同一插件一并注册;
  *   4. 插件卸载(dispose)时 skill 与工具一并自动注销——无残留、无单独卸载步骤。
  */
 import { describe, expect, it } from 'vitest'
@@ -75,10 +75,10 @@ describe('SKILL 随插件自动安装', () => {
     }
   })
 
-  it('14 个工具与 skill 同一插件同一生命周期', async () => {
+  it('17 个工具与 skill 同一插件同一生命周期', async () => {
     const { ctx, tools } = await mountHost()
     try {
-      expect(tools.registered.size).toBe(14)
+      expect(tools.registered.size).toBe(17)
       expect(tools.registered.has('structured_document')).toBe(false)
     } finally {
       await (ctx as unknown as { destroy(): Promise<void> }).destroy?.()
