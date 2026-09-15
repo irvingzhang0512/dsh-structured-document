@@ -52,6 +52,8 @@ export interface StructuredDocumentService {
   setCurrentFile(sessionId: string, filePath: string | null): void
   /** Set and fully bind a file before returning; used by transactional coordinators. */
   bindCurrentFile(sessionId: string, filePath: string): Promise<boolean>
+  /** Clear and fully unbind the session before returning. */
+  unbindCurrentFile(sessionId: string): Promise<void>
   /** 读取会话当前文件(未设置返回 null)。 */
   getCurrentFile(sessionId: string): string | null
   /** 选择节点(仅更新状态指针,不修改文档)。 */
@@ -128,18 +130,25 @@ export class StructuredDocumentServiceImpl implements StructuredDocumentService 
 
   setCurrentFile(sessionId: string, filePath: string | null): void {
     if (filePath === null || filePath === '') {
-      this.store.setCurrentFile(sessionId, null)
-      void this.registry.withSessionLock(sessionId, async () => {
-        this.registry.get(sessionId).unbindFile()
-      })
+      void this.unbindCurrentFile(sessionId)
       return
     }
     void this.bindCurrentFile(sessionId, filePath)
   }
 
   async bindCurrentFile(sessionId: string, filePath: string): Promise<boolean> {
+    const previous = this.store.getCurrentFile(sessionId)
     this.store.setCurrentFile(sessionId, filePath)
-    return this.registry.withSessionLock(sessionId, () => this.syncBound(sessionId, filePath))
+    const bound = await this.registry.withSessionLock(sessionId, () => this.syncBound(sessionId, filePath))
+    if (!bound) this.store.setCurrentFile(sessionId, previous)
+    return bound
+  }
+
+  async unbindCurrentFile(sessionId: string): Promise<void> {
+    await this.registry.withSessionLock(sessionId, async () => {
+      this.store.setCurrentFile(sessionId, null)
+      this.registry.get(sessionId).unbindFile()
+    })
   }
 
   async ensureBound(sessionId: string): Promise<boolean> {

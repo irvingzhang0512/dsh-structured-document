@@ -77,6 +77,23 @@ describe('结构化文档集成服务', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  it('bindCurrentFile 失败时恢复 current-file，并可等待解绑完成', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'sd-service-'))
+    const filePath = join(dir, 'meeting.md')
+    await writeFile(filePath, '# 会议纪要\n', 'utf8')
+    const store = new InMemoryCurrentFileStore()
+    const registry = makeRegistry(dir)
+    const service = new StructuredDocumentServiceImpl({ registry, store, resolvePath: async (_sid, raw) => raw })
+    expect(await service.bindCurrentFile('s1', filePath)).toBe(true)
+    expect(await service.bindCurrentFile('s1', join(dir, 'missing.md'))).toBe(false)
+    expect(service.getCurrentFile('s1')).toBe(filePath)
+    expect(service.getDocumentSnapshot('s1')?.currentFile).toBe(filePath)
+    await service.unbindCurrentFile('s1')
+    expect(service.getCurrentFile('s1')).toBeNull()
+    expect(service.getDocumentSnapshot('s1')).toBeNull()
+    await rm(dir, { recursive: true, force: true })
+  })
+
   it('目标切换等待同会话中的在途操作，解除目标后不再暴露旧文档', async () => {
     const { dir, filePath } = await makeFixture()
     const secondPath = join(dir, 'second.md')
