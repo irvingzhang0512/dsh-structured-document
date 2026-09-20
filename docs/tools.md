@@ -32,7 +32,7 @@
 - 返回:`outline[]`(`node_id/title/role/depth/child_count`)、`total_nodes`、`profile_id`。
 
 ### find_node
-- 参数:`query?`(关键词,匹配标题或内容)、`role?`、`property_key?` + `property_value?`。
+- 参数:`query?`(关键词,匹配标题或内容)、`role?`、`property_key?` + `property_value?`、`properties?`(对象,全部键值 AND 匹配;与 role/property_key 组合同样是 AND)。
 - 返回:`matches[]`、`count`、`ambiguous`(`count > 1`)。
 
 ### select_node

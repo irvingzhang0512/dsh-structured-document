@@ -185,6 +185,48 @@ describe('Markdown 适配器:序列化与往返', () => {
     expect(reparsed.root.children[0].properties.progress).toBe(30)
   })
 
+  it('project 新属性列(start_date/actual_date/level)往返无损', () => {
+    const doc = parseMarkdown('# 项目\n## 里程碑\n## 风险\n', { profileId: 'project', now: NOW, createdBy: 'test' }).doc
+    const [ms, risk] = doc.root.children
+    ms.role = 'milestone'
+    ms.properties = { owner: '张丽君', status: '已完成', due_date: '2026-09-30', actual_date: '2026-10-02' }
+    risk.role = 'risk'
+    risk.properties = { owner: '陈铭泽', status: '有风险', due_date: '待确认', level: '高' }
+    const text = serializeMarkdown(doc)
+    expect(text).toContain('| 类型 | 负责人 | 状态 | 截止日期 | 实际完成 |')
+    expect(text).toContain('| 里程碑 | 张丽君 | 已完成 | 2026-09-30 | 2026-10-02 |')
+    expect(text).toContain('| 类型 | 负责人 | 状态 | 截止日期 | 等级 |')
+    expect(text).toContain('| 风险 | 陈铭泽 | 有风险 | 待确认 | 高 |')
+    const reparsed = parseMarkdown(text, { profileId: 'project', now: NOW, createdBy: 'test' }).doc
+    expect(reparsed.root.children[0].properties).toEqual({ owner: '张丽君', status: '已完成', due_date: '2026-09-30', actual_date: '2026-10-02' })
+    expect(reparsed.root.children[1].properties).toEqual({ owner: '陈铭泽', status: '有风险', due_date: '待确认', level: '高' })
+  })
+
+  it('旧列集文档(无新列)仍可正常解析', () => {
+    const legacy = [
+      '# 项目',
+      '## 联调',
+      '  <!-- dsh:node-properties -->',
+      '  | 类型 | 负责人 | 状态 | 截止日期 |',
+      '  |---|---|---|---|',
+      '  | 任务 | 李四 | 进行中 | 周五 |',
+      '',
+    ].join('\n')
+    const doc = parseMarkdown(legacy, { profileId: 'project', now: NOW, createdBy: 'test' }).doc
+    expect(doc.root.children[0].role).toBe('task')
+    expect(doc.root.children[0].properties).toEqual({ owner: '李四', status: '进行中', due_date: '周五' })
+    const text = serializeMarkdown(doc)
+    expect(text).toContain('| 任务 | 李四 | 进行中 | 周五 |')
+  })
+
+  it('列集之外的属性键序列化时抛 VALIDATION_FAILED(防静默丢数据)', () => {
+    const doc = parseMarkdown('# 项目\n## 联调\n', { profileId: 'project', now: NOW, createdBy: 'test' }).doc
+    const node = doc.root.children[0]
+    node.role = 'task'
+    node.properties = { owner: '李四', priority: '高' } as unknown as Record<string, import('../../src/model/types.ts').PropertyValue>
+    expect(() => serializeMarkdown(doc)).toThrowError(/priority 无法序列化到 Markdown 属性表/)
+  })
+
   it('普通 Markdown 表格保持正文而不被识别成属性表', () => {
     const original = '# 文档\n## 数据\n| 类型 | 状态 |\n|---|---|\n| 普通数据 | 正常 |\n'
     const doc = parse(original)

@@ -50,7 +50,7 @@ when-to-use: 用户在讨论会议纪要、项目管理文档、思路/方案整
 |---|---|
 | `get_document` | 用户要看全文、完整结构、当前状态(结果较大,谨慎使用) |
 | `get_outline` | 看结构/大纲/有哪些部分(优先于 get_document) |
-| `find_node` | 按关键词、角色(如"所有待办")、属性(如"负责人是张三")查找 |
+| `find_node` | 按关键词、角色(如"所有待办")、属性(如"负责人是张三")查找;多属性用 `properties` 对象 AND 组合(如"张三进行中的任务"→ `properties: {"owner":"张三","status":"进行中"}`) |
 | `get_selected_node` | 确认"这个/刚才那个"现在指向谁、有没有选中 |
 | `select_node` | 用户说"选中/进入/到 XX 那部分"——设置当前节点 |
 
@@ -85,8 +85,10 @@ when-to-use: 用户在讨论会议纪要、项目管理文档、思路/方案整
 - `action_item` 属性:`owner` 负责人(文本)、`status` 状态(未开始/进行中/已完成/已取消)、`due_date` 截止时间(文本,保留原话如"周五")
 
 ### project 项目管理
-- 角色:`note`、`objective` 目标、`key_result` 关键结果、`milestone` 阶段/里程碑、`task` 任务、`issue` 问题、`risk` 风险
-- `task` 属性:`owner`、`status`(同上四值)、`due_date`、`progress` 进度(0-100 整数;用户说"50%"也传 50)
+- 角色:`note`、`objective` 目标(O)、`key_result` 关键结果(KR)、`goal` 成果(G)、`strategy` 策略(S)、`measure` 验收(M)、`module` 模块、`milestone` 里程碑、`task` 任务、`issue` 问题、`risk` 风险、`decision` 决策
+- 通用属性:`owner` 负责人(文本,多人顿号分隔)、`status` 状态(七值:未开始/进行中/已完成/已取消/有风险/阻塞/暂停)、`start_date` 计划开始、`due_date` 截止日期
+- 特殊属性:`task` 另有 `progress` 进度(0-100 整数;用户说"50%"也传 50);`milestone` 另有 `actual_date` 实际完成;`risk`/`issue` 另有 `level` 等级(高/中/低)
+- 负责人、日期、进度缺失依据时写「待确认」,不编造
 
 ### thinking 思路整理
 - 角色:`note`、`topic` 主题、`problem` 问题、`idea` 想法、`solution` 方案、`question` 疑问、`conclusion` 结论

@@ -19,9 +19,9 @@ import { requireProfile } from '../profiles/profiles.ts'
 import { checkPropertyForRole } from '../model/validation.ts'
 
 const PROPERTY_MARKER = '<!-- dsh:node-properties -->'
-const PROPERTY_COLUMNS = ['role', 'owner', 'status', 'due_date', 'progress'] as const
+const PROPERTY_COLUMNS = ['role', 'owner', 'status', 'start_date', 'due_date', 'actual_date', 'progress', 'level'] as const
 const COLUMN_LABELS: Record<(typeof PROPERTY_COLUMNS)[number], string> = {
-  role: '类型', owner: '负责人', status: '状态', due_date: '截止日期', progress: '进度',
+  role: '类型', owner: '负责人', status: '状态', start_date: '计划开始', due_date: '截止日期', actual_date: '实际完成', progress: '进度', level: '等级',
 }
 
 /** 解析选项。 */
@@ -286,6 +286,15 @@ function emitVisibleProperties(node: DocNode, profile: ProfileDefinition, lines:
   if (node.role === profile.defaultRole && Object.keys(node.properties).length === 0) return
   const role = profile.roles.find(candidate => candidate.name === node.role)
   if (role === undefined) throw new DocumentOperationError('VALIDATION_FAILED', `角色 ${node.role} 不属于模板 ${profile.id}。`)
+  // 防御:属性键必须能被属性表列承载,否则保存时会静默丢数据(模板定义与列集不一致属配置错误)。
+  for (const key of Object.keys(node.properties)) {
+    if (!(PROPERTY_COLUMNS as readonly string[]).includes(key)) {
+      throw new DocumentOperationError(
+        'VALIDATION_FAILED',
+        `节点「${node.title === '' ? '(无标题)' : node.title}」的属性 ${key} 无法序列化到 Markdown 属性表(可用列:${PROPERTY_COLUMNS.join('、')})。`,
+      )
+    }
+  }
   const keys = PROPERTY_COLUMNS.filter(key => key === 'role' || key in node.properties)
   const headers = keys.map(key => COLUMN_LABELS[key])
   const values = keys.map((key) => {

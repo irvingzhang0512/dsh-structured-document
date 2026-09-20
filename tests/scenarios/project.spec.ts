@@ -71,6 +71,62 @@ describe('场景:项目管理', () => {
     }
   })
 
+  it('完整 V2 对齐:G/S/M/模块/决策角色、七状态、里程碑实际完成与风险等级', async () => {
+    const s = await makeProjectScenario()
+    try {
+      await s.call('select_node', { node: '@root' })
+      // 策略(G1-S1)带计划周期与七状态之一
+      const strategy = await s.call('add_node', {
+        title: 'G1-S1 完成移动版硬件和结构迭代', role: 'strategy',
+        properties: { owner: '陈铭泽', status: '进行中', start_date: '2026-08-01', due_date: '2026-09-15' },
+      })
+      expect(strategy.success).toBe(true)
+      // 验收(M)
+      const measure = await s.call('add_node', {
+        parent: '@last_created', title: 'M1 输出受控PCB、BOM及结构资料', role: 'measure',
+        properties: { owner: '陈铭泽', status: '未开始', due_date: '待确认' },
+      })
+      expect(measure.success).toBe(true)
+      // 里程碑带 actual_date
+      const milestone = await s.call('add_node', {
+        title: 'MVP-1 设计冻结', role: 'milestone',
+        properties: { owner: '陈铭泽', status: '已完成', due_date: '2026-09-01', actual_date: '2026-09-02' },
+      })
+      expect(milestone.success).toBe(true)
+      const msNode = milestone.node as { properties: Record<string, unknown> }
+      expect(msNode.properties.actual_date).toBe('2026-09-02')
+      // 风险带等级,状态用「有风险」(旧四值之外的新枚举)
+      const risk = await s.call('add_node', {
+        title: 'RISK-001 结构干涉风险', role: 'risk',
+        properties: { owner: '陈铭泽', status: '有风险', due_date: '待确认', level: '高' },
+      })
+      expect(risk.success).toBe(true)
+      // 决策 + 阻塞/暂停等其他新状态值
+      const decision = await s.call('add_node', {
+        title: 'D-1 批准核心场景范围', role: 'decision',
+        properties: { owner: '王总', status: '已完成', due_date: '2026-08-20' },
+      })
+      expect(decision.success).toBe(true)
+      const blocked = await s.call('add_node', { title: '任务X', role: 'task', properties: { status: '阻塞' } })
+      expect(blocked.success).toBe(true)
+      // goal/strategy 之外再验证 goal 角色
+      const goal = await s.call('add_node', { title: 'G1 完成两款产品研发', role: 'goal', properties: { status: '进行中' } })
+      expect(goal.success).toBe(true)
+      // 七状态全部合法
+      for (const status of ['未开始', '进行中', '已完成', '已取消', '有风险', '阻塞', '暂停']) {
+        const set = await s.call('update_property', { node: '任务X', key: 'status', value: status })
+        expect(set.success, `状态 ${status} 应合法`).toBe(true)
+      }
+      // 落盘内容包含新列
+      const disk = await s.readDisk()
+      expect(disk).toContain('实际完成')
+      expect(disk).toContain('等级')
+      expect(disk).toContain('| 风险 | 陈铭泽 | 有风险 | 待确认 | 高 |')
+    } finally {
+      await s.cleanup()
+    }
+  })
+
   it('非法输入全部被拒:非法角色、非法属性键、非法进度、非法移动', async () => {
     const s = await makeProjectScenario()
     try {

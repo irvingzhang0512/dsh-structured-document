@@ -220,6 +220,36 @@ describe('查看与定位工具', () => {
     }
   })
 
+  it('find_node 多属性 properties 为 AND 组合(project 七状态)', async () => {
+    const harness = await makeHarness('# 项目\n## 研发\n', 'project.md', { defaultProfile: 'project' })
+    try {
+      const t1 = await call(harness, 'add_node', { parent: '研发', title: '任务A', role: 'task', properties: { owner: '张三', status: '进行中' } })
+      expect(t1.success).toBe(true)
+      const t2 = await call(harness, 'add_node', { parent: '研发', title: '任务B', role: 'task', properties: { owner: '张三', status: '有风险' } })
+      expect(t2.success).toBe(true)
+      const t3 = await call(harness, 'add_node', { parent: '研发', title: '任务C', role: 'task', properties: { owner: '李四', status: '进行中' } })
+      expect(t3.success).toBe(true)
+
+      // AND:张三 + 进行中 → 只有任务A
+      const both = await call(harness, 'find_node', { properties: { owner: '张三', status: '进行中' } })
+      expect(both.count).toBe(1)
+      expect((both.matches as Array<{ title: string }>)[0].title).toBe('任务A')
+      // 单键
+      const risky = await call(harness, 'find_node', { properties: { status: '有风险' } })
+      expect(risky.count).toBe(1)
+      expect((risky.matches as Array<{ title: string }>)[0].title).toBe('任务B')
+      // role + properties 同为 AND
+      const roleAndProps = await call(harness, 'find_node', { role: 'task', properties: { owner: '李四' } })
+      expect(roleAndProps.count).toBe(1)
+      expect((roleAndProps.matches as Array<{ title: string }>)[0].title).toBe('任务C')
+      // 旧参数不受影响
+      const legacy = await call(harness, 'find_node', { property_key: 'owner', property_value: '张三' })
+      expect(legacy.count).toBe(2)
+    } finally {
+      await harness.cleanup()
+    }
+  })
+
   it('select_node 设置当前节点;get_selected_node 读取;歧义返回候选', async () => {
     const harness = await makeHarness(MEETING)
     try {

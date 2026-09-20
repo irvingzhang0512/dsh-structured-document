@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- project 模板完整对齐防干烧项目管理 V2：状态枚举扩为七值(未开始/进行中/已完成/已取消/有风险/阻塞/暂停,仅 project;meeting 不变);新增 goal(成果)/strategy(策略)/measure(验收)/module(模块)/decision(决策)角色;milestone/risk/issue/objective/key_result 补 owner/status/due_date 等属性,task 新增 start_date,里程碑新增 actual_date,风险与问题新增 level(高/中/低)。
+- Markdown 属性表列集扩展为 role/owner/status/start_date/due_date/actual_date/progress/level;列集之外的属性键序列化时抛 VALIDATION_FAILED,防止静默丢数据;旧文档(无新列)正常兼容。
+- find_node 新增 properties 对象参数,多属性 AND 组合查询(与 role 组合同为 AND);旧参数 property_key/property_value 不变。
 - Markdown 升级为业务事实来源：Profile 写入 Front Matter，角色与属性写入可见表格并支持双向解析。
 - sidecar 升级为 v2，只保存稳定 Node ID 与运行时状态；兼容读取 v1，并在首次业务修改时迁移。
 - 修改工具返回 `markdownUpdated` 与 `sidecarSaved`，sidecar 写入失败不再回滚已成功保存的 Markdown 业务数据。

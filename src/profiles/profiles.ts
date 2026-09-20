@@ -46,27 +46,88 @@ export const MEETING_PROFILE: ProfileDefinition = {
   defaultRole: 'note',
 }
 
+/** 项目管理模板(project):状态枚举与通用属性声明(对齐防干烧项目管理 V2 的七种状态)。 */
+const PROJECT_STATUS_VALUES = ['未开始', '进行中', '已完成', '已取消', '有风险', '阻塞', '暂停'] as const
+
+function projectOwnerSpec() {
+  return { key: 'owner', label: '负责人', type: 'string', description: '负责人;多人用顿号分隔,缺失写「待确认」。' } as const
+}
+
+function projectStatusSpec() {
+  return { key: 'status', label: '状态', type: 'enum', values: [...PROJECT_STATUS_VALUES], description: '状态。' } as const
+}
+
+function projectStartDateSpec() {
+  return { key: 'start_date', label: '计划开始', type: 'string', description: '计划开始时间,保留用户原始表述(如「2026-09-01」「待确认」)。' } as const
+}
+
+function projectDueDateSpec() {
+  return { key: 'due_date', label: '截止日期', type: 'string', description: '计划完成/截止时间,保留用户原始表述(如「2026-09-30」「待确认」)。' } as const
+}
+
 /** 项目管理模板(project)。 */
 export const PROJECT_PROFILE: ProfileDefinition = {
   id: 'project',
   name: '项目管理',
-  description: '目标、关键结果、阶段、任务、问题与风险的管理结构。',
+  description: '目标(O)、关键结果(KR)、成果(G)、策略(S)、验收(M)、模块、里程碑、任务、问题、风险与决策的管理结构。',
   roles: [
     noteRole(),
-    { name: 'objective', label: '目标', description: '项目目标。', properties: [] },
-    { name: 'key_result', label: '关键结果', description: '衡量目标的关键结果。', properties: [] },
-    { name: 'milestone', label: '阶段 / 里程碑', description: '项目阶段或里程碑。', properties: [] },
+    {
+      name: 'objective', label: '目标', description: '项目或阶段的目标(O)。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectStartDateSpec(), projectDueDateSpec()],
+    },
+    {
+      name: 'key_result', label: '关键结果', description: '衡量目标的关键结果(KR)。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectStartDateSpec(), projectDueDateSpec()],
+    },
+    {
+      name: 'goal', label: '成果', description: '阶段或模块完成后的关键成果(G)。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectStartDateSpec(), projectDueDateSpec()],
+    },
+    {
+      name: 'strategy', label: '策略', description: '达成成果的关键策略(S)。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectStartDateSpec(), projectDueDateSpec()],
+    },
+    {
+      name: 'measure', label: '验收', description: '策略对应的可检查验收结果(M)。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectDueDateSpec()],
+    },
+    {
+      name: 'module', label: '模块', description: '模块或子项目的管理单元。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectStartDateSpec(), projectDueDateSpec()],
+    },
+    {
+      name: 'milestone', label: '里程碑', description: '项目关键节点与验收。',
+      properties: [
+        projectOwnerSpec(), projectStatusSpec(), projectDueDateSpec(),
+        { key: 'actual_date', label: '实际完成', type: 'string', description: '实际完成时间,保留用户原始表述。' },
+      ],
+    },
     {
       name: 'task', label: '任务', description: '具体执行的任务。',
       properties: [
-        { key: 'owner', label: '负责人', type: 'string', description: '任务负责人。' },
-        { key: 'status', label: '状态', type: 'enum', values: ['未开始', '进行中', '已完成', '已取消'], description: '任务状态。' },
-        { key: 'due_date', label: '截止时间', type: 'string', description: '截止时间,保留用户原始表述。' },
+        projectOwnerSpec(), projectStatusSpec(), projectStartDateSpec(), projectDueDateSpec(),
         { key: 'progress', label: '进度', type: 'integer', min: 0, max: 100, description: '进度百分比,0-100 的整数。' },
       ],
     },
-    { name: 'issue', label: '问题', description: '项目执行中的问题。', properties: [] },
-    { name: 'risk', label: '风险', description: '项目风险。', properties: [] },
+    {
+      name: 'issue', label: '问题', description: '项目执行中的问题。',
+      properties: [
+        projectOwnerSpec(), projectStatusSpec(), projectDueDateSpec(),
+        { key: 'level', label: '等级', type: 'enum', values: ['高', '中', '低'], description: '问题等级。' },
+      ],
+    },
+    {
+      name: 'risk', label: '风险', description: '项目风险。',
+      properties: [
+        projectOwnerSpec(), projectStatusSpec(), projectDueDateSpec(),
+        { key: 'level', label: '等级', type: 'enum', values: ['高', '中', '低'], description: '风险等级。' },
+      ],
+    },
+    {
+      name: 'decision', label: '决策', description: '项目决策及其结论。',
+      properties: [projectOwnerSpec(), projectStatusSpec(), projectDueDateSpec()],
+    },
   ],
   defaultRole: 'note',
 }

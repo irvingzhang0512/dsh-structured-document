@@ -243,12 +243,13 @@ export function createGetOutlineTool(deps: ToolDeps) {
 export function createFindNodeTool(deps: ToolDeps) {
   return defineTool({
     name: 'find_node',
-    description: '查找节点:find_node。按标题/内容关键词、角色、属性查找节点;存在多个候选时全部返回(不随机选择),需要用户确认或用「第几个」消歧。适合:「找一下热红外相关的节点」「有哪些待办」「找负责人是张三的任务」。',
+    description: '查找节点:find_node。按标题/内容关键词、角色、属性查找节点;属性支持多键 AND 组合;存在多个候选时全部返回(不随机选择),需要用户确认或用「第几个」消歧。适合:「找一下热红外相关的节点」「有哪些待办」「找负责人是张三的任务」「找张三进行中的任务」。',
     parameters: {
       query: { type: 'string', description: '关键词:匹配标题或内容(包含即命中);省略则不限。' },
       role: { type: 'string', description: '按角色过滤(如 task、action_item、discussion)。' },
       property_key: { type: 'string', description: '按属性键过滤(如 owner、status)。' },
       property_value: { type: 'string', description: '按属性值过滤(与 property_key 配合;字符串比较)。' },
+      properties: { type: 'json', description: '按多个属性 AND 过滤(如 {"owner":"张三","status":"进行中"};全部键值匹配才命中;与 role/property_key 组合时同样是 AND)。' },
     },
     isConcurrencySafe: () => true,
     output: {
@@ -283,11 +284,17 @@ export function createFindNodeTool(deps: ToolDeps) {
       },
     },
     execute: async (args, exec) => withWorkspace('find_node', exec, deps, async (workspace) => {
+      const rawProperties = args.properties
+      const properties = rawProperties !== undefined && rawProperties !== null
+        && typeof rawProperties === 'object' && !Array.isArray(rawProperties)
+        ? rawProperties as Record<string, unknown>
+        : undefined
       const matches = workspace.findNodes({
         query: args.query,
         role: args.role,
         propertyKey: args.property_key,
         propertyValue: args.property_value,
+        properties,
       })
       const count = matches.length
       return ok('find_node', count === 0

@@ -746,6 +746,13 @@ function matchesFilter(node: DocNode, filter: FindNodesFilter): boolean {
     if (!(filter.propertyKey in node.properties)) return false
     if (filter.propertyValue !== undefined && String(node.properties[filter.propertyKey]) !== filter.propertyValue) return false
   }
+  if (filter.properties !== undefined) {
+    // 多属性 AND 匹配:所有键都必须存在且值相等(字符串比较)。
+    for (const [key, value] of Object.entries(filter.properties)) {
+      if (!(key in node.properties)) return false
+      if (String(node.properties[key]) !== String(value)) return false
+    }
+  }
   return true
 }
 
@@ -755,6 +762,8 @@ export interface FindNodesFilter {
   role?: string
   propertyKey?: string
   propertyValue?: string
+  /** 多属性 AND 匹配(与 property_key/property_value 可同时使用,之间也是 AND)。 */
+  properties?: Record<string, unknown>
 }
 
 /** 大纲行。 */
