@@ -66,6 +66,8 @@ export interface StructuredDocumentService {
   getDocumentSnapshot(sessionId: string): DocumentSnapshot | null
   /** Undo the latest document transaction in this live host process. */
   undo(sessionId: string): Promise<{ revision: number, saved: boolean, sidecarSaved: boolean, undoneAction: string }>
+  /** 供受信任界面使用的节点编辑入口；仍走内核事务、版本和文件校验。 */
+  updateNode(sessionId: string, args: { nodeId: string, title: string, content: string, expectedFile: string, expectedRevision: number }): Promise<{ revision: number, saved: boolean, sidecarSaved: boolean }>
 }
 
 /** 服务实现。 */
@@ -117,6 +119,16 @@ export class StructuredDocumentServiceImpl implements StructuredDocumentService 
         const committed = await workspace.undo()
         return { revision: committed.revision, saved: committed.saved, sidecarSaved: committed.sidecarSaved, undoneAction: committed.result.undoneAction }
       })
+    })
+  }
+
+  async updateNode(sessionId: string, args: { nodeId: string, title: string, content: string, expectedFile: string, expectedRevision: number }): Promise<{ revision: number, saved: boolean, sidecarSaved: boolean }> {
+    return this.registry.withSessionLock(sessionId, async () => {
+      const workspace = await this.registry.requireBound(sessionId)
+      if (workspace.state.currentFilePath !== args.expectedFile) throw new Error('编辑目标已切换，请重新打开该节点。')
+      if (workspace.document.revision !== args.expectedRevision) throw new Error('文档已被更新，请先查看最新内容再保存。')
+      const committed = await this.registry.withFileLock(args.expectedFile, () => workspace.updateNode({ nodeId: args.nodeId, title: args.title, content: args.content }))
+      return { revision: committed.revision, saved: committed.saved, sidecarSaved: committed.sidecarSaved }
     })
   }
 

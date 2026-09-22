@@ -75,6 +75,8 @@ export class SessionWorkspace {
   private legacySidecarLoaded = false
   readonly state = new DocumentStateTracker()
   private undoStack: UndoEntry[] = []
+  /** 同一宿主进程内，切换文档后仍可撤销各自的最近修改。 */
+  private readonly undoStacksByFile = new Map<string, { hash: string, entries: UndoEntry[] }>()
   private readonly changeListeners = new Set<WorkspaceChangeListener>()
   private readonly completedRequests = new Map<string, { fingerprint: string, result: CommittedResult<DocumentMutationSummary> }>()
 
@@ -123,6 +125,7 @@ export class SessionWorkspace {
 
   /** 绑定当前文件(加载 + 解析 + sidecar 采纳)。 */
   async bindFile(rawPath: string): Promise<BindResult> {
+    this.stashUndo()
     const filePath = await this.options.resolvePath(this.sessionId, rawPath)
     let text: string
     try {
@@ -146,7 +149,7 @@ export class SessionWorkspace {
       this.state.currentFilePath = filePath
       this.state.restorePersisted(sidecar.state)
       this.state.dirty = false
-      this.undoStack = []
+      this.restoreUndo(filePath, hash)
       this.legacySidecarLoaded = true
       this.emit({ kind: 'bound', filePath, revision: this.doc.revision, selectedNodeId: this.state.selectedNodeId })
       return { filePath, title: this.doc.title, profileId: this.doc.profile, nodeCount: this.countNodes(), source: 'sidecar', revision: this.doc.revision }
@@ -175,7 +178,7 @@ export class SessionWorkspace {
       this.state.lastCreatedNodeId = null
     }
     this.state.dirty = false
-    this.undoStack = []
+    this.restoreUndo(filePath, hash)
     this.legacySidecarLoaded = false
     this.emit({ kind: 'bound', filePath, revision: this.doc.revision, selectedNodeId: this.state.selectedNodeId })
     const source = sidecar === null ? 'fresh' : sidecar.format_version === 2 && sidecar.content_hash === hash ? 'sidecar' : 'reparsed'
@@ -184,6 +187,7 @@ export class SessionWorkspace {
 
   /** 解绑当前文件(丢弃内存状态;磁盘文件不受影响)。 */
   unbindFile(): void {
+    this.stashUndo()
     this.doc = null
     this.profile = null
     this.state.currentFilePath = null
@@ -220,6 +224,26 @@ export class SessionWorkspace {
 
   private now(): Date {
     return (this.options.now ?? (() => new Date()))()
+  }
+
+  private stashUndo(): void {
+    const filePath = this.state.currentFilePath
+    if (filePath === null || this.loadedHash === null) return
+    this.undoStacksByFile.set(filePath, {
+      hash: this.loadedHash,
+      entries: this.undoStack.map(entry => ({ ...entry, snapshot: cloneDocument(entry.snapshot) })),
+    })
+  }
+
+  private restoreUndo(filePath: string, hash: string): void {
+    const saved = this.undoStacksByFile.get(filePath)
+    if (saved === undefined || saved.hash !== hash) {
+      // 外部修改会改变哈希；旧快照不能再安全地应用。
+      this.undoStacksByFile.delete(filePath)
+      this.undoStack = []
+      return
+    }
+    this.undoStack = saved.entries.map(entry => ({ ...entry, snapshot: cloneDocument(entry.snapshot) }))
   }
 
   private countNodes(): number {
