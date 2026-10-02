@@ -36,7 +36,7 @@ src/
   → 状态指针更新 + 撤销快照入栈 → envelope(中文 message + 结构化字段)
 ```
 
-任何一步失败:文档回滚到快照,返回结构化错误码,不留半完成状态(保存失败时 Dirty 复位,内存与磁盘一致)。
+校验或 Markdown 保存失败:文档回滚到快照并返回结构化错误码。Markdown 已成功写入后,sidecar 写失败不会回滚业务数据,结果返回 `markdownUpdated: true`、`sidecarSaved: false`;这是内核明确处理的边界,由 `tests/unit/kernel.spec.ts` 的 sidecar 失败用例覆盖。不得把两个文件的写入描述为一个不可分割事务。
 
 ## 设计决策
 

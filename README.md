@@ -1,5 +1,8 @@
 **English** | [简体中文](README.zh-CN.md)
 
+当前功能与验收以 [docs/SPEC.md](docs/SPEC.md) 为入口；原始需求保留为历史来源，技术契约见规格内的文档索引。功能任务先改规格再实现，Bug 按已有预期查源码修复。
+
+
 # dsh-structured-document
 
 A DSH (DeepSeek Harness) plugin that gives agents a structured document model for **meeting notes, project management, and idea boards**, so they can read, locate, modify, and reorganize documents through ordinary Chinese natural language — deterministically, instead of guessing at raw Markdown.
@@ -23,7 +26,7 @@ This plugin layers a structured document IR over plain Markdown and turns those 
 ## Features
 
 - **Stable node IDs** — IDs are assigned when a document is parsed and never change afterwards; the ID counter is monotonic, so an undo never reuses an ID. The root is always `node_001` (holds the document title, cannot be deleted or moved).
-- **Deterministic mutation pipeline** — every write goes through snapshot → mutate working copy → structure validation → persist (revision +1, full business data serialized back to Markdown, atomic temp-file write, sidecar refresh) → state update + undo snapshot. Validation failure or save failure rolls the document back to the snapshot, so no half-done state is ever left behind.
+- **Deterministic mutation pipeline** — every write goes through snapshot → mutate working copy → structure validation → persist (revision +1, full business data serialized back to Markdown, atomic temp-file write, sidecar refresh) → state update + undo snapshot. Validation or Markdown-save failure rolls the document back; a later sidecar failure preserves the saved Markdown and returns sidecarSaved=false.
 - **Undo everything** — each successful mutation (including `undo` itself) pushes a snapshot onto the undo stack (default depth 100). Revisions and the ID counter only ever increase.
 - **Chinese references with defined semantics** — `@selected` (this one), `@last_edited` (just edited), `@last_created` (just added), `@root` (whole document), `occurrence` (second / third / last of same-named nodes), and relative positioning (`previous_sibling` / `next_sibling` / `parent` / `first_child` / `last_child`).
 - **Markdown is the source of truth (sidecar v2)** — the document profile, node roles, and business properties (owner / status / due date / progress) are written back into *visible* Markdown: the profile goes into YAML front matter (`dsh_profile:`), and each node's role and properties are rendered as a small table under a `<!-- dsh:node-properties -->` marker (headers are in Chinese: 类型 / 负责人 / 状态 / 截止日期 / 进度). The `.sdoc.json` sidecar only stores stable node IDs and session state (selected / last edited / last created). Deleting the sidecar loses nothing but cross-session ID continuity — the full business structure is recovered from Markdown.
@@ -51,7 +54,7 @@ Requires Node.js >= 20. Peer dependencies: `@deepseek-ai/cordis` (>=4.0.2), `@de
 
 On mount the plugin automatically registers:
 
-- **14 Document Tools** (see the table below);
+- **17 Document Tools** (see the table below);
 - the bundled Chinese skill **`structured-document`** — `SKILL.md` ships inside the npm package (`files` includes `skills/`), is registered into `ctx.skills` as a `bundled` skill when the plugin mounts, and is unregistered automatically when the plugin unloads. **No separate skill installation step.** This lifecycle is covered by an end-to-end test (`tests/e2e/skill-install.spec.ts`) that mounts the plugin in a real cordis host with a real `SkillRegistry`.
 
 ## Quick start
@@ -84,7 +87,7 @@ All options have defaults (defined in [`src/plugin/config.ts`](src/plugin/config
 
 ## Tools & skill
 
-### Document Tools (14)
+### Document Tools (17)
 
 All tools share one result envelope — `{ success, action, message, revision?, ... }` on success, `{ success: false, error, message, candidates? }` on failure — and every mutation is auto-saved and undoable. Result messages are in Chinese and include `markdownUpdated` / `sidecarSaved` flags so the model can tell the user exactly what was persisted.
 
@@ -104,6 +107,9 @@ All tools share one result envelope — `{ success, action, message, revision?, 
 | Modify | `update_property` | Set or remove a property (enum & range validated) |
 | History | `undo` | Undo the last mutation (repeatable) |
 | History | `save_document` | Manual save (auto-save is on by default) |
+| Transaction | `create_document` | Create a document with safe filename handling |
+| Transaction | `replace_document` | Replace the whole document in one undoable transaction |
+| Transaction | `apply_document_patch` | Apply a batch of changes in one validated transaction |
 
 Node references: `node_007` / title text (exact first, then substring) / `@selected` / `@last_edited` / `@last_created` / `@root`, combined with `occurrence` (which one, 1-based; negative counts from the end) and `relative` positioning. Ambiguity is never resolved by guessing.
 
@@ -119,7 +125,7 @@ The plugin deliberately does not implement file-tree, file-picking, or file-swit
 - `config.currentFile` provides a static fallback for debugging;
 - if no provider is attached, tools return `NO_CURRENT_FILE` and guide the user to open a document first.
 
-The bridge to a concrete sidebar/editor is an integration-layer TODO tracked in [`docs/architecture.md`](docs/architecture.md).
+The current integration service is implemented in [`src/integration/service.ts`](src/integration/service.ts); the workbench and document-view plugins coordinate file binding. File-tree ownership remains external (see SPEC F007).
 
 ## Documentation
 

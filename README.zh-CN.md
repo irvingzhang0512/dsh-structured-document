@@ -1,5 +1,8 @@
 [English](README.md) | **简体中文**
 
+当前功能与验收以 [docs/SPEC.md](docs/SPEC.md) 为入口；原始需求保留为历史来源，技术契约见规格内的文档索引。功能任务先改规格再实现，Bug 按已有预期查源码修复。
+
+
 # dsh-structured-document
 
 DSH(DeepSeek Harness)结构化文档插件:让 Agent 通过**正常的中文**稳定地读取、定位、修改和重组结构化文档(会议纪要 / 项目管理 / 思路整理),而不是把 Markdown 当纯文本瞎猜着改。
@@ -9,7 +12,7 @@ DSH(DeepSeek Harness)结构化文档插件:让 Agent 通过**正常的中文**�
 直接编辑 Markdown 对 Agent 有三个天然坑:**指代失效**("刚才那个""上一条"没有着落)、**结构破坏**(层级/编号/缩进被改错)、**无法撤销**。本插件用一层结构化文档 IR 把这三件事变成确定性操作:
 
 - 每个节点有稳定 ID(`node_001`、`node_002` …),移动、改名后引用依然有效;
-- 所有修改走「结构校验 → 自动保存 → 版本递增 → 状态更新」管线,任何一步失败都整体回滚到操作前快照;
+- 所有修改走「结构校验 → 自动保存 → 版本递增 → 状态更新」管线,校验或 Markdown 保存失败时回滚;Markdown 已成功而 sidecar 失败时保留业务数据并单独反馈;
 - 每一步都可撤销(`undo`),中文指代("这个 / 刚才那个 / 刚加的 / 上一条 / 第二个")有明确、成文的语义。
 
 **边界**:插件不负责文件树 / 文件选择 / 文件切换——"当前文件"由运行环境注入(见[当前文件集成](#当前文件集成))。
@@ -17,7 +20,7 @@ DSH(DeepSeek Harness)结构化文档插件:让 Agent 通过**正常的中文**�
 ## 特性
 
 - **稳定节点 ID** — ID 在解析时分配、之后永不变更;计数器单调递增,撤销后不复用 ID。根节点固定为 `node_001`(承载文档标题,不可删除、不可移动)。
-- **确定性修改管线** — 每次写入都走:快照 → 工作副本变更 → 结构校验 → 持久化(版本 +1、完整业务数据写回 Markdown、临时文件原子写、sidecar 刷新)→ 状态更新 + 撤销快照入栈。校验失败或保存失败时回滚到快照,不留半完成状态。
+- **确定性修改管线** — 每次写入都走:快照 → 工作副本变更 → 结构校验 → 持久化(版本 +1、完整业务数据写回 Markdown、临时文件原子写、sidecar 刷新)→ 状态更新 + 撤销快照入栈。校验或 Markdown 保存失败时回滚到快照;Markdown 成功而 sidecar 失败时返回 sidecarSaved=false,保留已写入的业务数据。
 - **全部可撤销** — 每次成功修改(含 `undo` 本身)都把快照压入撤销栈(默认 100 步);版本号与 ID 计数器只增不减。
 - **中文指代语义明确** — `@selected`(这个/当前)、`@last_edited`(刚才改的)、`@last_created`(刚加的)、`@root`(整个文档)、`occurrence`(第二个/第三条/最后一个)以及相对定位(`previous_sibling` / `next_sibling` / `parent` / `first_child` / `last_child`)。
 - **Markdown 是业务事实来源(sidecar v2)** — 文档 Profile、节点角色与业务属性(负责人 / 状态 / 截止日期 / 进度)全部写回**用户可见的 Markdown**:Profile 写入 YAML Front Matter(`dsh_profile:`),角色与属性以带 `<!-- dsh:node-properties -->` 标记的可见表格呈现(表头为中文:类型 / 负责人 / 状态 / 截止日期 / 进度)。`.sdoc.json` 只保存稳定 Node ID 与会话状态(选中 / 最近修改 / 最近新增);删除 sidecar 不丢业务结构——完整业务数据可从 Markdown 恢复,损失的只是跨会话 ID 延续。
@@ -116,7 +119,7 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 - `config.currentFile` 提供静态兜底(调试用);
 - 未注入提供者时,工具返回 `NO_CURRENT_FILE`,引导用户先打开文档。
 
-与具体侧边栏 / 编辑器的桥接属于集成层 TODO,跟踪于 [`docs/architecture.md`](docs/architecture.md)。
+当前集成服务已实现,见 [`src/integration/service.ts`](src/integration/service.ts);工作台与文档视图协调文件绑定,文件树仍由外部插件负责(见 SPEC F007)。
 
 ## 文档
 

@@ -1,12 +1,23 @@
 # AGENTS.md — AI 代理协作指引
 
+## 开发入口与文档分工
+
+先返回根维护目录，读取 [根 AGENTS](../AGENTS.md)、[维护规范](../docs/MAINTENANCE.md) 和开发 Skill；本仓库的特殊约束仍适用。统一流程见 [文档驱动开发](../docs/DOC-DRIVEN-DEVELOPMENT.md)，当前可编辑规格见 [docs/SPEC.md](docs/SPEC.md)。
+
+- 功能新增／修改：读取规格及其差异，先改预期和验收条件，涉及接口／配置／存储时先同步技术契约，再改源码并验证。自然语言需求也先落入规格。
+- Bug：按已有预期复现并直接查看源码、日志和测试，修复回归；预期未变无需改规格，遗漏／歧义补规格，产品规则变化部分按功能流程。不得改规格把 Bug 解释为正确行为。
+- 原始需求保持只读历史来源；实现状态和验证结果分开记录，冲突保留证据并标待确认。README 是入口，架构／配置／接口文档维护技术契约。
+- 纯文档任务检查编号、状态、链接与源码／测试引用，记录未执行的验证；无需运行下面的代码测试／构建或重装。代码改动仍遵循本仓库验证要求。
+- 纯文档变更不提高包版本，独立中文 Angular docs 提交，保持当前实际分支；根仓库同步完整提交锁。安装快照由脚本检查，未变保留，不自动推送。
+
+
 本文件供 AI 代理(Agent)在本仓库工作时遵循。目标:保持代码风格、提交历史与项目边界的一致性。
 
 ## 项目简介
 
 `dsh-structured-document` 是一个 DSH 插件:通过结构化文档 IR 与 17 个 Document Tools,让 Agent 用中文自然语言稳定地读取、定位、修改和重组结构化文档(会议纪要 / 项目管理 / 思路整理),支持"这个 / 刚才那个 / 刚加的 / 上一条 / 第二个"等中文指代,所有修改自动保存、可撤销。
 
-权威需求文档:`requirements.txt`(V0.1,42 章);架构决策:`docs/architecture.md`。
+当前功能规格:[docs/SPEC.md](docs/SPEC.md);历史需求:`requirements.txt`(V0.1,42 章,只读);技术契约:`docs/architecture.md`。
 
 ## 常用命令
 
@@ -71,16 +82,16 @@ npm run build       # 构建到 lib/
 ❌ feat: 新增了撤销功能。     (句号结尾;应写明行为与影响)
 ```
 
-### 提交前检查
+### 代码提交前检查
 
 1. `npm run typecheck` 零错误;
-2. `npm test` 全部通过(82 条基线,新增功能必须带测试);
+2. `npm test` 全部通过(以本次实际运行结果为准,新增功能必须带适当测试);
 3. 不提交构建产物(`lib/`)与临时文件(已被 `.gitignore` 覆盖);
 4. 提交信息用 UTF-8 文件 + `git commit -F <file>` 写入,避免 Windows 控制台编码把中文写坏。
 
 ## 项目边界(不要越界)
 
-- 本插件**不做**文件树、文件选择、文件切换、Sidebar 集成——"当前文件"经 `CurrentFileProvider` 接缝由外部注入(见 `src/plugin/current-file.ts` 的 TODO);
+- 本插件**不做**文件树、文件选择、文件切换、Sidebar 集成——"当前文件"经 `CurrentFileProvider` 接缝由外部注入(见 `src/plugin/current-file.ts` 与 `src/integration/service.ts`);
 - 每个 Tool 职责单一,**禁止**添加万能 command 工具;
 - Skill 只承担"中文自然语言 → 工具参数"映射,业务规则一律在内核强制执行;
 - LLM 不得直接修改底层 JSON / Markdown,所有修改必须走工具管线(校验 → 保存 → 版本 +1)。
