@@ -15,6 +15,7 @@
  * 跨半边 value import,跨插件协作一律走 cordis 服务。
  */
 import { builtinModules } from 'node:module'
+import { readFileSync } from 'node:fs'
 import type { UserConfig } from 'tsdown'
 
 /** Node 内建模块永远不能进入浏览器 module-loader 闭包。 */
@@ -25,6 +26,20 @@ const NODE_BUILTINS = new Set([
 
 /** 注册的 bundle id:npm 包名(module-loader compose key,必须等于包名)。 */
 const BUNDLE_ID = 'dsh-structured-document'
+
+/**
+ * 卡片头部显示的插件版本号,构建期从本包 `package.json` 的 `version` 读入并
+ * 内联为字符串字面量(见下面的 `define`)。这样版本号只有一个事实源,不会随
+ * 发版漂移;浏览器闭包运行时不需要读文件,也不引入 Node 内建。
+ */
+function readOwnVersion(): string {
+  const raw = readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+  const version = (JSON.parse(raw) as { version?: unknown }).version
+  if (typeof version !== 'string' || version === '') {
+    throw new Error('tsdown: package.json 缺少可用于卡片头部的 version 字段')
+  }
+  return version
+}
 
 /** 平台外部依赖(shell 静态模块表提供):React 及其 JSX runtime。 */
 const PLATFORM_EXTERNALS = ['react', 'react/jsx-runtime', 'cordis']
@@ -65,6 +80,9 @@ export default {
   },
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
+    // 卡片头部的版本号:构建期读 package.json 后内联,单一事实源(见 readOwnVersion)。
+    // 源码里以 `declare const __DSD_VERSION__` 声明,未打包直接运行时回退为占位串。
+    __DSD_VERSION__: JSON.stringify(readOwnVersion()),
   },
   plugins: purityGate(),
   outputOptions: {

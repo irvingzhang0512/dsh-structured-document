@@ -36,6 +36,8 @@ F010:设置页插件配置卡与配置分层。
 
 ### 变更
 
+- **设置卡外观对齐宿主卡片**(F011):卡片从"自绘扁平盒子"改为按宿主 `PluginCard` 的外观语法绘制——`section` 外框(`.5px solid --dsw-alias-border-l4`、`bg-layer-3`、`border-radius:16px`;展开态 `bg-layer-2` + `label-dimmed`)、可折叠头部 `<button>`(flex、gap 12、padding 14px 16px,`aria-expanded` + `aria-controls`,含插件名 + 版本号 + 副标题 + 覆盖状态徽标 + 16px chevron 展开旋转 180°)、带 `.5px` 分隔线的设置行(标签在左 `flex:1`、控件行内右对齐)、保存与放弃按钮移到右下角操作行(`justify-content:flex-end`)。卡片 chrome 的数值以宿主 `PluginCard` 的真实规则为准(插件市场的 `1px` + `border-l2` + `radius:12px` 只是它对宿主的近似,未采用)。只改外观与文案,配置语义与保存模型不变;收起只隐藏主体,组件保持挂载,未保存草稿不因收起丢失。
+- **卡片版本号改为构建期注入**:头部版本号不再有硬编码漂移风险,由 `tsdown.config.ts` 的 `readOwnVersion()` 读取本包 `package.json` 的 `version` 后经 `define` 注入 `__DSD_VERSION__`,bundle 里内联为字符串字面量(运行时不读文件、不引入 Node 内建)。
 - `currentFile` 不进设置卡片、也不进设置命名空间的 schema:它是外部集成接缝,只在组装层配置;运行时的当前文件仍由 `CurrentFileProvider` / 工作台绑定决定,静态值只是兜底。
 - 内核的可配置字段(`defaultProfile` / `autoSave` / `maxUndoSteps`)改为经 `getConfig()` 每次读取的 getter,保证设置页保存后按 `applies: 'live'` 立即生效,而不是挂载时快照。
 
@@ -46,6 +48,7 @@ F010:设置页插件配置卡与配置分层。
 ### 测试
 
 - 新增 `tests/unit/settings-config.spec.ts` 12 项:解析顺序与逐字段兜底、`currentFile` 只在组装层、设置 schema 只声明三个字段且拒绝非法取值、软依赖在场 / 缺失 / 摘除三条路径、用户覆盖对 `autoSave` / `defaultProfile` / `maxUndoSteps` 实时生效。全量 119 项通过。
+- 新增 `tests/unit/client-card.spec.ts` 22 项(F011)与配套的 `tests/unit/hook-runtime.ts`(极简 hook 运行时,不新增依赖):slot / key 与宿主命名空间一致、头部 `aria-expanded` 翻转与 `aria-controls` 关联、三行控件类型与标签(下拉 / `role=switch` / `number min=1`)、覆盖徽标文案随用户层变化、收起后草稿仍在、保存提交带 revision 栅栏的 mutation、放弃修改清空草稿、卡片 chrome 按宿主真实数值对齐、样式配方与主题令牌白名单、版本号无硬编码。全量 141 项通过。
 
 ## 0.1.0(2026-01-15)
 

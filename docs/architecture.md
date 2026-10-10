@@ -126,6 +126,8 @@ SKILL.md 是"中文自然语言 → 工具参数"的映射规范(指代表、工
 
 卡片控件由本插件自己实现：官方只提供 `numberField` / `textField` 两个字段规格与 `ValueField` / `SecretField` 两个呈现件，select 与 switch 需要自建 `format` / `parse` 与控件；保存统一走共享的 `CardForm`，它是这份表单唯一的写入点（控件只暂存草稿，从不自行落盘）。
 
+**外观约定（F011）**：卡片容器由插件自己绘制（宿主只提供 flex 列容器与 `settings.plugin.item` 派发），因此外观必须**镜像宿主 `PluginCard` 的布局语法**，不得自创盒子——可折叠头部 `<button>`（`aria-expanded` + `aria-controls`）、带 `border-top` 分隔线的设置行（标签列 `flex:1`、控件 `flex:none` 行内右对齐）、右下角操作行，配色一律用真实存在的 `--dsw-alias-*` 令牌并给兜底值。**卡片 chrome 的数值以宿主 `PluginCard` 的真实规则为准**（本插件卡片与宿主内置卡片同页并列，比对基准是宿主）：`.5px solid --dsw-alias-border-l4` + `background:bg-layer-3` + `border-radius:16px`，展开态 `background:bg-layer-2` + `border-color:label-dimmed`；主体／设置行／操作行分隔线同为 `.5px --dsw-alias-border-l2`。其余布局数值照 [开发 Skill 的 config-ui.md §8「卡片外观：镜像宿主 PluginCard，不要自创盒子」](../../.agents/skills/dsh-plugin-develop/references/config-ui.md#8-卡片外观镜像宿主-plugincard不要自创盒子)。实现位于 [`../src/client/index.tsx`](../src/client/index.tsx) 的 `injectStyle()`，由 [`../tests/unit/client-card.spec.ts`](../tests/unit/client-card.spec.ts) 逐条核对（含"不得残留市场近似值 `1px` + `border-l2` + `radius:12px`"的负向断言）。两条配套约定：头部写清"哪个插件的哪个配置"（插件名 + 版本号 + 副标题，版本号由构建期注入，见 `tsdown.config.ts` 的 `__DSD_VERSION__`）；保存与放弃放在右下角操作行，沿用草稿 + 保存模型（控件即时写入会破坏 F010 的 revision 栅栏语义）。
+
 ### 软依赖
 
 设置服务是可选依赖，写法要求：
@@ -153,7 +155,8 @@ SKILL.md 是"中文自然语言 → 工具参数"的映射规范(指代表、工
 | 命名空间常量、卡片字段 schema（`SETTINGS_NAMESPACE` / `PROFILE_IDS` / `SettingsConfig`）、组装层 `Config`、解析顺序（`resolveConfig`） | [`../src/plugin/config.ts`](../src/plugin/config.ts) |
 | 软依赖接入（`ctx.inject(['settings'], …)`）、组装 `base` 注册、`applies: 'live'`、`KernelOptions` 三字段 getter、读取侧兜底 `readLiveConfig` | [`../src/index.ts`](../src/index.ts) |
 | settings 服务面结构镜像（`SettingsServiceFace` / `SettingsScopeFace` / `SettingsConsumerContext`） | [`../src/context-types.ts`](../src/context-types.ts) |
-| 设置卡片（`settings.plugin.item`，key = 命名空间；`ctx.inject(['settingsScope'], …)` 软挂载、草稿 + 单点 `mutate` 保存） | [`../src/client/index.tsx`](../src/client/index.tsx) |
+| 设置卡片（`settings.plugin.item`，key = 命名空间；`ctx.inject(['settingsScope'], …)` 软挂载、草稿 + 单点 `mutate` 保存；F011 外观按宿主 `PluginCard` 镜像） | [`../src/client/index.tsx`](../src/client/index.tsx) |
+| 卡片外观配方核对（chrome / 折叠头部 / 行 / 操作行 / 纯度与主题令牌） | [`../tests/unit/client-card.spec.ts`](../tests/unit/client-card.spec.ts)、[`../tests/unit/hook-runtime.ts`](../tests/unit/hook-runtime.ts) |
 | 客户端半边 bundle（loader id = 包名） | [`../tsdown.config.ts`](../tsdown.config.ts) |
 | `dsh.client`、`exports["./client"]` 与客户端构建步骤 | [`../package.json`](../package.json) |
 | 端到端用例（解析顺序、schema 拒绝、软依赖在场/缺失/摘除、用户覆盖生效） | [`../tests/unit/settings-config.spec.ts`](../tests/unit/settings-config.spec.ts) |
