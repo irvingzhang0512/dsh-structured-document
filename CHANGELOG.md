@@ -23,6 +23,30 @@
 - 修改工具返回 `markdownUpdated` 与 `sidecarSaved`，sidecar 写入失败不再回滚已成功保存的 Markdown 业务数据。
 - 新增 Markdown 独立恢复、v1 迁移、属性转义和 sidecar 故障测试。
 
+## 0.2.0(2026-10-10)
+
+F010:设置页插件配置卡与配置分层。
+
+### 新增
+
+- **设置页插件配置卡**(本插件的浏览器半边):在「设置 → 插件 → 插件配置」注册一张卡片,key 即设置命名空间 `dsh-structured-document`,`applies: 'live'`(保存后即时生效)。字段:`defaultProfile`(select:会议纪要 / 项目管理 / 思路整理)、`autoSave`(switch)、`maxUndoSteps`(number,整数且 ≥ 1)。
+- **配置分层**:解析顺序为 schema 默认 → 组装 `base`(插件行 `cordis.patch.yml` 的 `config`)→ 用户层(设置页保存),后者覆盖前者;逐字段兜底,组装层缺字段时不会被整体跳过。
+- **卡片控件与写入**:控件自建(官方只提供 `numberField` / `textField` 两个字段规格与 `ValueField` / `SecretField` 两个呈现件);先暂存草稿、点保存才一次提交多条有序 mutation,带 revision 围栏,冲突被拒并保留草稿;被覆盖字段显示「已覆盖」标记,可重置回组装值。
+- **客户端构建**:新增 `src/client/index.tsx`、`tsdown.config.ts` 与 `package.json` 的 `dsh.client` / `exports["./client"]`,构建产出 `lib/client.js`。
+
+### 变更
+
+- `currentFile` 不进设置卡片、也不进设置命名空间的 schema:它是外部集成接缝,只在组装层配置;运行时的当前文件仍由 `CurrentFileProvider` / 工作台绑定决定,静态值只是兜底。
+- 内核的可配置字段(`defaultProfile` / `autoSave` / `maxUndoSteps`)改为经 `getConfig()` 每次读取的 getter,保证设置页保存后按 `applies: 'live'` 立即生效,而不是挂载时快照。
+
+### 修复
+
+- 越界组装值不再让插件整块挂载失败:宿主 provider 惰性校验 `base`(注册不报错、首次读取才过 schema),原先异常会从 `apply()` 冒出、导致 0 个工具注册。现改为在读取侧兜底——告警一次并退回组装配置,插件照常挂载;越界值不静默改成 schema 默认值,仍由内核按原有语义明确报错。
+
+### 测试
+
+- 新增 `tests/unit/settings-config.spec.ts` 12 项:解析顺序与逐字段兜底、`currentFile` 只在组装层、设置 schema 只声明三个字段且拒绝非法取值、软依赖在场 / 缺失 / 摘除三条路径、用户覆盖对 `autoSave` / `defaultProfile` / `maxUndoSteps` 实时生效。全量 119 项通过。
+
 ## 0.1.0(2026-01-15)
 
 首个版本:面向 DSH 的结构化文档插件(会议纪要 / 项目管理 / 思路整理)。

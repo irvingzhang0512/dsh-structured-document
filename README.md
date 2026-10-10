@@ -76,7 +76,7 @@ The complete utterance-to-parameter mapping lives in the skill body: [`skills/st
 
 ## Configuration
 
-All options have defaults (defined in [`src/plugin/config.ts`](src/plugin/config.ts)):
+Options resolve in this order — **schema default → assembly `base` → user layer** (each layer overrides the previous one):
 
 | Option | Default | Description |
 |---|---|---|
@@ -84,6 +84,12 @@ All options have defaults (defined in [`src/plugin/config.ts`](src/plugin/config
 | `autoSave` | `true` | Persist to disk immediately after each validated mutation (temp file + atomic rename). When disabled, use `save_document` to save manually. |
 | `currentFile` | `''` | Optional static current-file binding (absolute path, or relative to the session cwd). Empty means the runtime provides it. |
 | `maxUndoSteps` | `100` | Undo stack depth. |
+
+The **assembly layer** is the `config` block of this plugin's row (e.g. in `cordis.patch.yml`); definitions live in [`src/plugin/config.ts`](src/plugin/config.ts).
+
+`defaultProfile`, `autoSave` and `maxUndoSteps` are also editable per user in **Settings → Plugins → Plugin configuration**, and a value saved there **takes precedence over the assembly value** (namespace `dsh-structured-document`, `applies: 'live'` — it takes effect immediately, no restart). Each field there shows an "overridden" badge and can be reset to inherit the assembly value again. Out-of-range values are rejected by the schema instead of silently falling back to a default.
+
+`currentFile` **is not on that card and not in the settings namespace schema** — it is the external integration seam (who supplies "the current file"), so it is configurable **only in the assembly layer**. The current file at runtime is still decided by `CurrentFileProvider` / the workbench binding; the static value is only a fallback. The settings service is a soft dependency: when it is absent the plugin still mounts, its tools and skill keep working, the card is simply not rendered, and the assembly config applies.
 
 ## Tools & skill
 
@@ -122,7 +128,7 @@ The skill is the model-side map from Chinese natural language to tool calls: ref
 The plugin deliberately does not implement file-tree, file-picking, or file-switching behavior. Each session's current file comes from a `CurrentFileProvider` seam (see [`src/plugin/current-file.ts`](src/plugin/current-file.ts)):
 
 - the plugin provides `ctx.structuredDocument`, whose writable in-memory store lets an integration (e.g., a sidebar/editor plugin) push current-file changes via `setCurrentFile(sessionId, path)`;
-- `config.currentFile` provides a static fallback for debugging;
+- `config.currentFile` provides a static fallback for debugging; it is resolved **only in the assembly layer**, so the settings page cannot override it (see "Configuration" above);
 - if no provider is attached, tools return `NO_CURRENT_FILE` and guide the user to open a document first.
 
 The current integration service is implemented in [`src/integration/service.ts`](src/integration/service.ts); the workbench and document-view plugins coordinate file binding. File-tree ownership remains external (see SPEC F007).

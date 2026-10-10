@@ -66,9 +66,18 @@
 
 回答「第二个」或直接说 ID 即可。
 
+## 配置与设置
+
+配置按 **schema 默认 → 组装 `base` → 用户层** 的顺序解析,后者覆盖前者:
+
+- **组装层**:插件行的 `config`(如 `cordis.patch.yml` 中),由部署者 / profile 提供,含 `defaultProfile` / `autoSave` / `currentFile` / `maxUndoSteps`。
+- **用户层**:「设置 → 插件 → 插件配置」中本插件的卡片(`dsh-structured-document`),可覆盖 `defaultProfile` / `autoSave` / `maxUndoSteps` 三个字段。保存后**立即生效**(`applies: 'live'`),无需重启;被覆盖的字段显示「已覆盖」,可重置回组装值。
+
+**设置页保存的用户值优先于组装值。** 卡片里改不动 `currentFile`:它不进卡片、也不进设置命名空间的 schema——`currentFile` 是外部集成接缝,只在组装层配置(见下节)。设置服务是软依赖:服务缺失时插件照常挂载,工具与技能照常工作,只是不渲染卡片并沿用组装配置。
+
 ## 集成方须知(Current File Integration)
 
-插件通过 `CurrentFileProvider` 接缝获取会话的当前文件;提供者返回空时工具返回 `NO_CURRENT_FILE`。插件不做文件树 / 选择 / 切换——这部分由 Controller / Sidebar 协同(接口与 TODO 见 [架构](architecture.md#7-当前文件集成current-file-integration))。调试可在配置里静态指定 `currentFile`。
+插件通过 `CurrentFileProvider` 接缝获取会话的当前文件;提供者返回空时工具返回 `NO_CURRENT_FILE`。插件不做文件树 / 选择 / 切换——这部分由 Controller / Sidebar 协同(接口与 TODO 见 [架构](architecture.md#7-当前文件集成current-file-integration))。调试可在组装层配置里静态指定 `currentFile`;该字段只在组装层生效,设置页的用户覆盖不会改变它。
 
 ## 故障与恢复
 

@@ -145,3 +145,17 @@ SKILL.md 是"中文自然语言 → 工具参数"的映射规范(指代表、工
 ### 契约来源
 
 以上 API 事实核对自本机 DSH `0.1.5-rc.2`：`@deepseek-ai/dsh-settings`（`register` / `installSection` / `applies` / 解析顺序 / revision 围栏）、`@deepseek-ai/dsh-client-ui-settings`（`ctx.settingsScope.bind`，快照的 `status` / `value` / `base` / `user` / `revision` / `writable` / `mode`）、`@deepseek-ai/dsh-client-ui-settings-plugins`（`settings.plugin.item` slot 与 `CardForm` / `numberField` / `textField` / `ValueField` / `SecretField`）。
+
+### 实现位置
+
+| 契约部分 | 实现 |
+| --- | --- |
+| 命名空间常量、卡片字段 schema（`SETTINGS_NAMESPACE` / `PROFILE_IDS` / `SettingsConfig`）、组装层 `Config`、解析顺序（`resolveConfig`） | [`../src/plugin/config.ts`](../src/plugin/config.ts) |
+| 软依赖接入（`ctx.inject(['settings'], …)`）、组装 `base` 注册、`applies: 'live'`、`KernelOptions` 三字段 getter、读取侧兜底 `readLiveConfig` | [`../src/index.ts`](../src/index.ts) |
+| settings 服务面结构镜像（`SettingsServiceFace` / `SettingsScopeFace` / `SettingsConsumerContext`） | [`../src/context-types.ts`](../src/context-types.ts) |
+| 设置卡片（`settings.plugin.item`，key = 命名空间；`ctx.inject(['settingsScope'], …)` 软挂载、草稿 + 单点 `mutate` 保存） | [`../src/client/index.tsx`](../src/client/index.tsx) |
+| 客户端半边 bundle（loader id = 包名） | [`../tsdown.config.ts`](../tsdown.config.ts) |
+| `dsh.client`、`exports["./client"]` 与客户端构建步骤 | [`../package.json`](../package.json) |
+| 端到端用例（解析顺序、schema 拒绝、软依赖在场/缺失/摘除、用户覆盖生效） | [`../tests/unit/settings-config.spec.ts`](../tests/unit/settings-config.spec.ts) |
+
+**惰性校验与读取侧兜底**：宿主 provider 在 `register` 时不解析 `base`，第一次 `get()` 才把 base 与用户层合并后交给 schema。因此越界的组装值（如 `defaultProfile: 'weekly'`）报错点在**读取**而非注册。`getConfig()` 经 `readLiveConfig()` 读取：解析抛错时告警一次并退回组装配置，插件照常挂载；越界值不静默改成 schema 默认值，仍由内核按原有语义明确报错（装载文档时 `requireProfile` 抛“场景模板不合法”）。注册阶段抛错的 provider 也保留同样的回退分支。

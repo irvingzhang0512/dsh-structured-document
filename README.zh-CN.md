@@ -70,7 +70,7 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 
 ## 配置
 
-全部配置项均有默认值(定义于 [`src/plugin/config.ts`](src/plugin/config.ts)):
+配置按 **schema 默认 → 组装 `base` → 用户层** 的顺序解析,后者覆盖前者:
 
 | 配置 | 默认 | 说明 |
 |---|---|---|
@@ -78,6 +78,12 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 | `autoSave` | `true` | 修改经结构校验后立即写盘(临时文件 + 原子替换);关闭后需用 `save_document` 手动保存 |
 | `currentFile` | 空 | 可选:静态指定当前文件(绝对路径,或相对会话工作目录);留空表示由运行环境注入 |
 | `maxUndoSteps` | `100` | 撤销栈深度 |
+
+**组装层**即本插件行的 `config`(如 `cordis.patch.yml` 中),定义见 [`src/plugin/config.ts`](src/plugin/config.ts)。
+
+`defaultProfile`、`autoSave`、`maxUndoSteps` 还可以在**设置 → 插件 → 插件配置**中按用户单独覆盖,设置页保存的值**优先于组装值**(命名空间 `dsh-structured-document`,`applies: 'live'`,保存后立即生效、无需重启)。被覆盖的字段显示「已覆盖」标记,可重置回组装值。非法取值由 schema 拒绝并明确报错,不会静默退回默认值。
+
+`currentFile` **不在这张卡片、也不在该命名空间的 schema 里**——它是外部集成接缝(谁提供“当前文件”),因此**只在组装层配置**。运行时的当前文件仍由 `CurrentFileProvider` / 工作台绑定决定,静态值只是兜底。设置服务是软依赖:服务缺失时插件照常挂载,工具与技能照常工作,只是不渲染卡片,并沿用组装配置。
 
 ## 工具与技能
 
@@ -116,7 +122,7 @@ dsh plugin --profile <name> add dsh-structured-document@<version>
 插件刻意不做文件树 / 文件选择 / 文件切换。会话的"当前文件"经 `CurrentFileProvider` 接缝注入(见 [`src/plugin/current-file.ts`](src/plugin/current-file.ts)):
 
 - 插件对外提供 `ctx.structuredDocument`,其可写内存存储允许集成方(如侧边栏 / 编辑器插件)通过 `setCurrentFile(sessionId, path)` 推送当前文件变化;
-- `config.currentFile` 提供静态兜底(调试用);
+- `config.currentFile` 提供静态兜底(调试用),该字段只在**组装层**解析,设置页无法覆盖它(见上节「配置」);
 - 未注入提供者时,工具返回 `NO_CURRENT_FILE`,引导用户先打开文档。
 
 当前集成服务已实现,见 [`src/integration/service.ts`](src/integration/service.ts);工作台与文档视图协调文件绑定,文件树仍由外部插件负责(见 SPEC F007)。

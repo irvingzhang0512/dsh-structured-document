@@ -2,7 +2,7 @@
 
 基线日期：2026-10-03；包版本：0.1.0；核对的源码提交：`2df8d3348a7f668330bf8e680a68001478f93418`。此提交是首次整理前的实现基线，后续文档提交不提高包版本。
 
-2026-10-10 增量：新增 F010（设置页插件配置卡与配置分层），技术契约同步到 [architecture.md](architecture.md) 的「配置契约」。该版为待用户确认的规格增量，尚未实现；包版本仍为 0.1.0。
+2026-10-10 增量：新增 F010（设置页插件配置卡与配置分层），技术契约同步到 [architecture.md](architecture.md) 的「配置契约」。该版经用户确认后已实现并验证，包版本提高到 0.2.0；本插件的浏览器半边（`src/client/`、`tsdown.config.ts`、`package.json` 的 `dsh.client`）随 F010 首次引入，用户已于 2026-10-10 确认授权新增该结构。
 
 本规格可编辑，功能任务先改预期与验收及相关技术契约，交用户明确确认该版文档后再开发；确认前不得修改对应源码／测试实现或运行配置。用户已明确要求按同一版文档实现且含义未变时，不重复询问；新增语义差异须重新确认，确认范围写入规格变更或任务交付记录。Bug 按已有且不变的预期直接定位源码。流程见 [根文档驱动开发规范](../../docs/DOC-DRIVEN-DEVELOPMENT.md)。原始需求保持只读，技术文档保留现有名称。
 
@@ -93,12 +93,12 @@
 
 ## F010 设置页插件配置卡与配置分层
 
-- 实现状态：待实现（2026-10-10 规格增量，用户确认该版文档后开发）。
+- 实现状态：已实现（2026-10-10 按用户确认的该版文档落地；包版本提高到 0.2.0）。
 - 场景与预期：配置分两层——组装配置（`cordis.patch.yml` 的 `config`）注册为设置命名空间的 `base`，设置页用户覆盖位于其上；解析顺序为 schema 默认 → 组装 `base` → 用户层。插件在「设置 → 插件 → 插件配置」提供一张卡片，namespace 为 `dsh-structured-document`，`applies: 'live'`（保存后按当前值即时生效，插件经 `getConfig()` 读取）。卡片字段：`defaultProfile`（select：`meeting`／`project`／`thinking`，默认 `meeting`）、`autoSave`（switch，默认 `true`）、`maxUndoSteps`（number，默认 `100`，最小 1）。
 - 边界与异常：`currentFile` 不进卡片，也不进该命名空间的 schema——它是外部集成接缝（谁提供“当前文件”），继续只在组装层配置，运行时的当前文件仍由 `CurrentFileProvider`／工作台绑定决定，静态值只是兜底。设置服务是软依赖：`settings` 不写进插件的必需 `inject`，用 `ctx.inject(['settings'], sctx => …)` 在服务可用时接入（`register` 或 `installSection`）；服务缺失时回退到只读的组装配置，插件照常挂载、工具与 Skill 照常工作。客户端半边的 `settingsScope` 同样是软依赖：服务不存在或该 namespace 未被宿主服务时不渲染卡片，也不影响插件其它能力。写入走设置文档、按用户持久化，能标记“被覆盖”并把字段重置为组装默认值；写入受 revision 围栏保护，用旧快照保存被拒（`SettingsConflictError`）而不是覆盖较新值，失败时保留草稿。字段非法取值由 schema 拒绝并明确报错（如 `defaultProfile: 'weekly'`、`maxUndoSteps: 0`），不静默当作默认值。卡片自己拥有控件与文案：官方只提供 `numberField`／`textField` 与 `ValueField`／`SecretField`，select 与 switch 需卡片自建 `format`／`parse` 与控件，保存仍走共享的 `CardForm` 单点写入。
 - 验收条件：设置页出现本插件卡片且字段与上面清单一致；`defaultProfile` 保存后，装载无 sidecar 历史的文档使用新模板；`autoSave` 关闭后普通修改保持脏状态、需手动 `save_document`，重新打开后恢复自动保存；`maxUndoSteps` 设为 1 时只保留最近一步撤销，设为 0 或非整数被拒并给出错误；被覆盖字段有“已覆盖”标记，重置后回到组装值（组装未设则回 schema 默认）；用旧 revision 保存被拒并保留草稿；设置文档中的非法值被 schema 拒绝、插件不静默改变行为；`currentFile` 不出现在卡片，卡片保存后组装层的 `currentFile` 语义不变；设置服务缺失时插件仍挂载、工具可用且不渲染卡片；用户未覆盖时用组装值，覆盖后组装值不再生效，重置后重新生效。
-- 实现依据：待实现；预期改动 [../src/plugin/config.ts](../src/plugin/config.ts)（命名空间常量与卡片字段 schema，`currentFile` 不进入该 schema）、[../src/index.ts](../src/index.ts)（软依赖接入与 `getConfig()`）、[../src/context-types.ts](../src/context-types.ts)（settings 可选服务面）；待新增 `src/client/index.tsx`（卡片：`ctx.settingsScope.bind` + `settings.plugin.item` slot，key 为命名空间）、`tsdown.config.ts`（客户端半边 bundle，loader id 必须等于包名）；[../package.json](../package.json) 预期增加 `dsh.client`、`exports["./client"]` 与客户端构建步骤（本版文档不改动该文件）。
-- 验证记录：本版为文档增量，未运行任何验证。
+- 实现依据：[../src/plugin/config.ts](../src/plugin/config.ts)（`SETTINGS_NAMESPACE`／`PROFILE_IDS`／`SettingsConfig`／`resolveConfig`，`currentFile` 不进入设置 schema）、[../src/index.ts](../src/index.ts)（软依赖 `ctx.inject(['settings'], …)`、组装 `base` 注册、`KernelOptions` 三字段 getter 与 `readLiveConfig` 读取侧兜底）、[../src/context-types.ts](../src/context-types.ts)（`SettingsServiceFace`／`SettingsScopeFace`／`SettingsConsumerContext` 结构镜像）、[../src/client/index.tsx](../src/client/index.tsx)（`settings.plugin.item` 卡片，key = 命名空间；`ctx.inject(['settingsScope'], …)` 软挂载）、[../tsdown.config.ts](../tsdown.config.ts)（客户端 bundle，loader id 等于包名）、[../package.json](../package.json)（`dsh.client` 与 `exports["./client"]`）。
+- 验证记录：2026-10-10 本次执行——`npx vitest run` 通过（11 个文件、119 个用例全绿，含新增的 [../tests/unit/settings-config.spec.ts](../tests/unit/settings-config.spec.ts) 12 项）；`npm run typecheck` 通过（零错误）；`npm run build` 通过（`tsc` 产物 + `tsdown` 客户端 bundle `lib/client.js` 16.43 kB）。未执行项：未在真实 DSH web profile 中打开设置页做 GUI 目视核对，未验证写入围栏（`SettingsConflictError`）在真实宿主的端到端表现——这两项留待安装验证，本记录不宣称通过。构建产物 `lib/` 由 `.gitignore` 忽略，未纳入跟踪。
 
 ## 差异与验证待办
 
@@ -106,9 +106,11 @@
 - AGENTS 的 current-file TODO 引用过时，当前 Provider／服务已实现；文件树仍由外部拥有。
 - 旧架构／README 泛称任何保存步骤失败都回滚，与内核和既有 sidecar 失败测试不符；本次按明确代码决策和测试澄清 F005：Markdown 已保存时不回滚业务数据，单独报告 sidecarSaved=false。
 - 工具和内核测试文件是验证入口；本次不重跑全量场景，不宣称外部编辑器与跨插件 GUI 通过。
-- 2026-10-10 增量：F010 尚无实现与验证。附带待同步项——`README.md`／`README.zh-CN.md` 的配置表与 `docs/usage.md` 目前只描述组装层配置，实现时需补“设置页用户覆盖优先于组装值、`currentFile` 只在组装层”的说明。本插件当前没有浏览器半边（`package.json` 无 `dsh.client`、构建只有 `tsc`），F010 会首次引入客户端 bundle 与相应构建步骤：**用户已于 2026-10-10 确认授权新增该结构**，实现时按 F010 实现依据落地。
+- 2026-10-10 增量：F010 已实现并验证（见条目的实现依据与验证记录）。附带同步项已完成：`README.md`／`README.zh-CN.md` 的配置表与 `docs/usage.md` 已补“设置页用户覆盖优先于组装值、`currentFile` 只在组装层”的说明。本插件此前没有浏览器半边（`package.json` 无 `dsh.client`、构建只有 `tsc`），F010 首次引入客户端 bundle 与相应构建步骤（`src/client/`、`tsdown.config.ts`、`dsh.client`／`exports["./client"]`）：**用户已于 2026-10-10 确认授权新增该结构**，本次按 F010 实现依据落地。
+- F010 实现中发现并修复的一处实现缺陷（不改规格语义）：`getConfig()` 原先直接把 `liveScope.get()` 的异常抛给调用方，而宿主 provider 是**惰性**校验 `base`（注册不报错、首次 `get()` 才合并用户层并过 schema），导致越界的组装值在 `apply()` 内第一次读配置时抛错、插件整块挂载失败。已按 F010 边界条款把兜底移到读取侧（`readLiveConfig`）：捕获后告警一次并退回组装配置，越界值仍由内核按原有语义明确报错，不静默改成 schema 默认值。
 
 ## 规格变更记录
 
 - 2026-10-03：首次从现行文档、实现和现有测试建立功能基线；仅修改维护文档，未变更 API、存储或运行逻辑。
 - 2026-10-10：新增 F010（设置页插件配置卡与配置分层），配置契约同步到 [architecture.md](architecture.md) 的「配置契约」。本版为待用户确认的文档增量，未改动源码、测试或运行配置，未提高包版本。
+- 2026-10-10（实现收尾）：F010 按用户确认的该版文档实现并验证：实现状态改「已实现」，补实现依据与本次真实验证记录，包版本提高到 0.2.0；未变更 F001–F009 的规格语义。同步 README／README.zh-CN／usage 的配置分层说明。
