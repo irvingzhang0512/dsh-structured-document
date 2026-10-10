@@ -93,3 +93,55 @@ SKILL.md 是"中文自然语言 → 工具参数"的映射规范(指代表、工
 ### 10. schema 管线与 dsh-tools 的 const 泛型推断
 
 `defineTool<const S, const O>` 依赖字面量类型推断出精确的 execute 返回类型;共享 schema 常量必须以 `as const satisfies` 传入(宽化为 `ValueSchemaSpec` 会让推断塌缩为 `never`)。工具层用 `outputSchema()` 泛型函数保持字面量;`defineTool` 在注册时把参数 DSL 编译为 raw JSON Schema,`execute` 内置参数校验(非法参数抛 `ToolArgsError`)。
+
+## 配置契约
+
+本节是 F010（设置页插件配置卡与配置分层）的技术契约，实现前先按此固定字段名、层面与写入语义。
+
+### 两层配置
+
+配置有两个来源，解析顺序为 **schema 默认值 → 组装 `base` → 用户层**（后者覆盖前者）：
+
+| 层 | 来源 | 由谁写入 |
+| --- | --- | --- |
+| schema 默认 | 插件 schema 的 `.default()` | 插件 |
+| 组装 `base` | 插件行 `cordis.patch.yml` 的 `config`（含 profile 覆盖） | 部署者 / profile |
+| 用户层 | 设置文档中该命名空间的分节 | 用户在设置页保存 |
+
+命名空间是包名 `dsh-structured-document`，`applies: 'live'`：保存后立即对插件生效，插件经 `getConfig()` 读取当前值，不需要重启。
+
+该命名空间为本次新增，设置文档里不存在遗留分节，因此没有旧持久配置需要迁移或清理；组装配置的四个字段含义与现状一致（`currentFile` 仍只在组装层生效）。
+
+### 设置页卡片字段
+
+「设置 → 插件 → 插件配置」的卡片由本插件浏览器半边注册在 `settings.plugin.item` slot 上，**key 即命名空间**（该 slot 的类型由 `@deepseek-ai/dsh-client-ui-settings-plugins` 声明；设置页把宿主服务的命名空间与该 key 配对）。卡片可编辑字段：
+
+| 字段 | 控件 | 默认 | 约束 |
+| --- | --- | --- | --- |
+| `defaultProfile` | select：`meeting` / `project` / `thinking` | `meeting` | 枚举；非法值由 schema 拒绝 |
+| `autoSave` | switch | `true` | 布尔 |
+| `maxUndoSteps` | number | `100` | 整数且 ≥ 1 |
+
+`currentFile` **不在这张卡片、也不在该命名空间的 schema 里**：它是外部集成接缝（谁提供“当前文件”），继续只在组装层配置。运行时的当前文件仍由 `CurrentFileProvider` / 工作台绑定决定，静态值只是兜底（见设计决策 7）。把该字段排除在 schema 之外，是为了让用户层无法从设置文档顶掉这个集成接缝。
+
+卡片控件由本插件自己实现：官方只提供 `numberField` / `textField` 两个字段规格与 `ValueField` / `SecretField` 两个呈现件，select 与 switch 需要自建 `format` / `parse` 与控件；保存统一走共享的 `CardForm`，它是这份表单唯一的写入点（控件只暂存草稿，从不自行落盘）。
+
+### 软依赖
+
+设置服务是可选依赖，写法要求：
+
+- `settings` **不写进插件的必需 `inject`**（`src/index.ts` 的 `export const inject` 与 `cordis.patch.yml` 入口的 `inject` 两处保持一致）。cordis 把入口 `inject` 当硬前置：任一服务不可用时 fiber 不进入激活状态并执行卸载（`Fiber._refresh` → `_setEpoch(INACTIVE)` → `_unload()`），插件的 `apply` 根本不会被调用；服务出现后才重新激活。只有不列进去，才能满足“设置服务缺失时插件照常挂载与工作”。参照实现 `dsh-automation` 在入口 `inject` 里列了 `settings`，按上述语义那会让设置服务变成硬前置；本插件以本节为准。
+- 接入用方法形式 `ctx.inject(['settings'], (sctx) => …)`：服务可用时才回调，不在时回调不发生，插件其余部分照常运行。注册有两种形式——`sctx.settings.register(ns, schema, { base, applies: 'live' })` 返回 owner scope，由插件自己读取并 watch（`dsh-automation` 的写法）；或 `installSection(owner, ns, schema, entry, hooks)`，这是官方给可选消费者的形式：服务在场时把组装 `entry` 当 `base` 注册，服务摘除时自动回退到该 `entry`，并通过 `hooks.setSource` / `onChange` 通知重判。
+- 回调内注册的清理 effect 负责把 `getConfig()` 还原成组装配置，保证服务摘除后不留悬挂读取。
+- 客户端半边同理：`settingsScope` 缺失或该命名空间未被宿主服务时，卡片不渲染（`CardShell.available === false`），不影响插件其它能力。
+
+### 用户覆盖的写入与冲突
+
+- 卡片各字段先暂存草稿，只有“保存”才写入；一次保存把该卡片的多个字段作为有序 mutation 提交，不是每个控件各自落盘。保存后从宿主接受的结果回读，未落地的保留草稿并标记失败。
+- 字段是否“被覆盖”取决于它**是否出现在原始 `user` 层**，不比较值：覆盖值恰好等于组装值仍然是覆盖。重置＝清除该字段，使其重新继承组装层（组装未设则回 schema 默认）。
+- 写入带 `expectedRevision` 围栏：拿旧快照保存会被拒（`SettingsConflictError`），不覆盖较新的值。
+- 非法取值由 schema 拒绝并明确报错，不静默退化为默认值。外部直接编辑设置文档写入非法分节时，该命名空间保留最后一次有效值并告警，其它命名空间照常提交。
+
+### 契约来源
+
+以上 API 事实核对自本机 DSH `0.1.5-rc.2`：`@deepseek-ai/dsh-settings`（`register` / `installSection` / `applies` / 解析顺序 / revision 围栏）、`@deepseek-ai/dsh-client-ui-settings`（`ctx.settingsScope.bind`，快照的 `status` / `value` / `base` / `user` / `revision` / `writable` / `mode`）、`@deepseek-ai/dsh-client-ui-settings-plugins`（`settings.plugin.item` slot 与 `CardForm` / `numberField` / `textField` / `ValueField` / `SecretField`）。
