@@ -1,157 +1,78 @@
 [English](README.md) | **简体中文**
 
-当前功能与验收以 [docs/SPEC.md](docs/SPEC.md) 为入口；原始需求保留为历史来源，技术契约见规格内的文档索引。功能任务先改规格与相关技术契约，用户明确确认该版文档后再开发；已确认同一版不重复询问。Bug 按已有且不变的预期查源码修复。
-
-
 # dsh-structured-document
 
-DSH(DeepSeek Harness)结构化文档插件:让 Agent 通过**正常的中文**稳定地读取、定位、修改和重组结构化文档(会议纪要 / 项目管理 / 思路整理),而不是把 Markdown 当纯文本瞎猜着改。
+按节点和层级组织 Markdown 文档，让 Agent 在讨论中通过工具定位、修改和重组内容，并在需要时撤销修改。
 
-## 它解决什么问题
+## 能做什么
 
-直接编辑 Markdown 对 Agent 有三个天然坑:**指代失效**("刚才那个""上一条"没有着落)、**结构破坏**(层级/编号/缩进被改错)、**无法撤销**。本插件用一层结构化文档 IR 把这三件事变成确定性操作:
-
-- 每个节点有稳定 ID(`node_001`、`node_002` …),移动、改名后引用依然有效;
-- 所有修改走「结构校验 → 自动保存 → 版本递增 → 状态更新」管线,校验或 Markdown 保存失败时回滚;Markdown 已成功而 sidecar 失败时保留业务数据并单独反馈;
-- 每一步都可撤销(`undo`),中文指代("这个 / 刚才那个 / 刚加的 / 上一条 / 第二个")有明确、成文的语义。
-
-**边界**:插件不负责文件树 / 文件选择 / 文件切换——"当前文件"由运行环境注入(见[当前文件集成](#当前文件集成))。
-
-## 特性
-
-- **稳定节点 ID** — ID 在解析时分配、之后永不变更;计数器单调递增,撤销后不复用 ID。根节点固定为 `node_001`(承载文档标题,不可删除、不可移动)。
-- **确定性修改管线** — 每次写入都走:快照 → 工作副本变更 → 结构校验 → 持久化(版本 +1、完整业务数据写回 Markdown、临时文件原子写、sidecar 刷新)→ 状态更新 + 撤销快照入栈。校验或 Markdown 保存失败时回滚到快照;Markdown 成功而 sidecar 失败时返回 sidecarSaved=false,保留已写入的业务数据。
-- **全部可撤销** — 每次成功修改(含 `undo` 本身)都把快照压入撤销栈(默认 100 步);版本号与 ID 计数器只增不减。
-- **中文指代语义明确** — `@selected`(这个/当前)、`@last_edited`(刚才改的)、`@last_created`(刚加的)、`@root`(整个文档)、`occurrence`(第二个/第三条/最后一个)以及相对定位(`previous_sibling` / `next_sibling` / `parent` / `first_child` / `last_child`)。
-- **Markdown 是业务事实来源(sidecar v2)** — 文档 Profile、节点角色与业务属性(负责人 / 状态 / 截止日期 / 进度)全部写回**用户可见的 Markdown**:Profile 写入 YAML Front Matter(`dsh_profile:`),角色与属性以带 `<!-- dsh:node-properties -->` 标记的可见表格呈现(表头为中文:类型 / 负责人 / 状态 / 截止日期 / 进度)。`.sdoc.json` 只保存稳定 Node ID 与会话状态(选中 / 最近修改 / 最近新增);删除 sidecar 不丢业务结构——完整业务数据可从 Markdown 恢复,损失的只是跨会话 ID 延续。
-- **兼容读取 v1 sidecar** — 旧版 v1 sidecar 打开时可读;首次**业务修改**时才迁移为 v2(单纯选择节点不会提前覆盖 v1)。
-- **歧义绝不乱猜** — 标题命中多个节点时,工具返回 `MULTIPLE_NODES_FOUND` + `candidates` 候选列表(含 ID / 标题 / 角色 / 路径),由 Agent 向用户确认,**绝不随机选择**。
-- **外部修改以磁盘为准** — 每次工具调用前比对文件哈希;会话外改动后以磁盘为准重新解析(撤销栈与状态指针清空)。
-- **会话隔离** — 每个 Agent 会话一个文档工作区,懒绑定到会话的当前文件与工作目录。
-- **捆绑中文技能** — `structured-document` 技能随包发布,教会模型"中文说法 → 工具调用"的精确映射(见[工具与技能](#工具与技能))。
+- 将文档组织为有稳定编号的节点，支持会议、项目和思路整理三种模板。
+- 定位章节，增加、修改、移动或删除节点，维护角色、负责人、状态等模板支持的属性。
+- 将一批修改作为一次事务保存、推进版本并撤销，减少多步编辑造成的不一致。
+- 将业务内容写回可直接阅读的 Markdown，保留节点编号与会话状态的配套文件。
 
 ## 安装
 
-以 DSH profile bundle 形式安装(插件包内带 `cordis.patch.yml`,自动应用):
+当前本地版本 **0.2.1**，适配 **DSH Desktop 0.2.1-rc.2**。本插件提供文档工具和服务；文件浏览、可视化与讨论工作台由对应插件提供，按需要另装。宿主依赖见 [package.json](package.json)。
 
-```sh
-npm install dsh-structured-document
-```
+截至 2026-10-18，[公开源码仓库](https://github.com/irvingzhang0512/dsh-structured-document)默认分支包版本为 **0.1.0**，本页版本尚未公开推送或发布。请先向维护者获取完整预构建 `.tgz`，目前没有本版公开下载链接。
 
-或通过 DSH CLI:
+1. 在「插件 → 添加插件 → 安装第三方插件」填写安装包的本机绝对路径。
+2. 核对包名 `dsh-structured-document` 和版本 `0.2.1`，启用后按提示重启 DSH。
+3. 在有工作目录的会话中，让 Agent 检查结构化文档工具和 `structured-document` 技能是否可用。技能随插件注册，无需手动复制。
 
-```sh
-dsh plugin --profile <name> add dsh-structured-document@<version>
-```
-
-需要 Node.js >= 20;peer 依赖 `@deepseek-ai/cordis`(>=4.0.2)、`@deepseek-ai/dsh-tools`(>=0.1.2-rc.1)、`@deepseek-ai/schemastery`(>=3.18.2)。
-
-插件挂载后自动注册:
-
-- **17 个 Document Tools**(见下方工具表);
-- 捆绑中文技能 **`structured-document`** —— `SKILL.md` 随 npm 包发布(`files` 含 `skills/`),插件挂载时自动注册进 `ctx.skills`(bundled),卸载时随插件自动注销。**无需单独安装技能。** 该生命周期有端到端测试保障(`tests/e2e/skill-install.spec.ts`,真实 cordis + 真实 SkillRegistry)。
-
-## 快速上手
-
-1. 在 DSH 中打开一个 Markdown 文档(示例见 [`examples/`](examples/):`examples/meeting/weekly-meeting.md`、`examples/project/person-detection.md`、`examples/thinking/report-outline.md`);
-2. 直接用中文说:
-
-```text
-看看现在的结构                    → get_outline
-进入「当前算法问题」              → select_node
-加一条讨论:误报集中在低功率档位   → add_node (role=discussion)
-刚才这条改成结论                  → change_role (node=@last_created, role=conclusion)
-加个待办:负责人张三,周五完成      → add_node (role=action_item, properties={owner, due_date})
-状态改成进行中                    → update_property (key=status)
-撤销                              → undo
-```
-
-完整的说法映射见技能正文 [`skills/structured-document/SKILL.md`](skills/structured-document/SKILL.md)。
+本版测试与隔离 Desktop 验证见 [兼容记录](docs/DSH-UPGRADE-20261017.md)，不代表已经从公网完成本版安装。
 
 ## 配置
 
-配置按 **schema 默认 → 组装 `base` → 用户层** 的顺序解析,后者覆盖前者:
+第一次使用可保持默认：新文档默认会议模板、自动保存开启、最多保留 100 步撤销。新建时可以明确指定项目或思路模板。
 
-| 配置 | 默认 | 说明 |
+在 Desktop 插件详情查看对应组件配置；组装层配置改动需重载插件。历史独立设置卡依赖宿主提供旧设置服务，缺失时不显示，插件仍按组装配置与默认值运行。当前文件通常由文档视图或工作台提供，不需要为每个文件修改静态配置。完整配置和集成方式见 [技术说明](docs/architecture.md)。
+
+## 第一次使用
+
+在 DSH 中打开一个真实工作目录的会话，使用一个新文件练习：
+
+1. 发送：
+
+   > 使用结构化文档技能，在当前工作区根目录新建“讨论提纲”，使用思路整理模板，包含“目标”“想法”“待确认”三个章节。不要覆盖已有文件，告诉我实际保存路径。
+
+2. 核对 Agent 返回的成功状态、实际 `.md` 路径和大纲；到该路径打开文件，确认三个章节存在。同名文件会另取可用文件名。
+3. 继续发送「在‘待确认’下新增一条：评审时间尚未确定」，再核对返回版本和磁盘内容。
+4. 发送「撤销刚才新增的这一条」，确认该节点被移除，其他章节保留。
+
+需要图形展示时，另装文档视图；需要在多个参考文件之间固定整理目标时，再配合讨论工作台。已有文件必须先由这些集成或维护者配置绑定为当前文档，单纯用外部编辑器打开文件不等于已绑定。
+
+## 常用操作
+
+| 想做什么 | 对 Agent 说 | 结果 |
 |---|---|---|
-| `defaultProfile` | `meeting` | 打开无 sidecar 历史的新 Markdown 时使用的场景模板:`meeting` / `project` / `thinking` |
-| `autoSave` | `true` | 修改经结构校验后立即写盘(临时文件 + 原子替换);关闭后需用 `save_document` 手动保存 |
-| `currentFile` | 空 | 可选:静态指定当前文件(绝对路径,或相对会话工作目录);留空表示由运行环境注入 |
-| `maxUndoSteps` | `100` | 撤销栈深度 |
+| 看结构 | “列出当前文档的大纲” | 返回章节和节点层级 |
+| 修改指定章节 | “把‘待确认’这一节的标题改为‘待核实’” | 保留节点编号并修改标题 |
+| 调整层级 | “把刚新增的节点移到‘目标’下面” | 校验结构后移动节点 |
+| 批量整理 | 明确列出多项变化，要求合并为一次修改 | 一次保存、一次版本推进，可整次撤销 |
 
-**组装层**即本插件行的 `config`(如 `cordis.patch.yml` 中),定义见 [`src/plugin/config.ts`](src/plugin/config.ts)。
+## 使用边界
 
-`defaultProfile`、`autoSave`、`maxUndoSteps` 还可以在**设置 → 插件 → 插件配置**中按用户单独覆盖,设置页保存的值**优先于组装值**(命名空间 `dsh-structured-document`,`applies: 'live'`,保存后立即生效、无需重启)。被覆盖的字段显示「已覆盖」标记,可重置回组装值。非法取值由 schema 拒绝并明确报错,不会静默退回默认值。
+- 新建目标和事务写入受会话工作区路径约束，保存目录必须真实存在；支持 `.md` 和 `.markdown`。
+- 同名节点有多个候选时，需要你明确是哪一个；没有唯一选中节点时，不能随意猜测“这个”。
+- 默认自动保存。Markdown 保存成功而配套 `.sdoc.json` 写入失败时，会单独反馈；配套文件不替代正文。
+- 外部编辑会触发重新读取，并重置旧撤销栈和相关状态，避免用旧状态覆盖新文件。
+- 本插件没有文件树或独立文件选择界面；切换文档由集成提供。
+- 三场景扩展和协作设计仍有待确认／待实现项，见 [当前规格](docs/SPEC.md)，不把规划中的能力当作本版功能。
 
-`currentFile` **不在这张卡片、也不在该命名空间的 schema 里**——它是外部集成接缝(谁提供“当前文件”),因此**只在组装层配置**。运行时的当前文件仍由 `CurrentFileProvider` / 工作台绑定决定,静态值只是兜底。设置服务是软依赖:服务缺失时插件照常挂载,工具与技能照常工作,只是不渲染卡片,并沿用组装配置。
+## 常见问题
 
-## 工具与技能
+### 提示没有当前文件
 
-### 工具一览(17 个)
+先在当前会话新建结构化文档，或通过已安装的文档视图／工作台绑定实际文件。确认绑定路径后再修改，文件浏览器里看见文件不代表文档内核已经打开它。
 
-所有工具共用结果 envelope:成功 `{ success, action, message, revision?, ... }`,失败 `{ success: false, error, message, candidates? }`;所有修改自动保存、可撤销。结果中的 `message` 一律中文,并带 `markdownUpdated` / `sidecarSaved` 标记,便于向用户如实说明持久化情况。
+### 删除配套文件后，正文会丢失吗
 
-| 类别 | 工具 | 用途 |
-|---|---|---|
-| 查看 | `get_document` | 完整文档(树、角色、属性、状态) |
-| 查看 | `get_outline` | 大纲(层级 / 角色 / 子节点数) |
-| 查看 | `find_node` | 按关键词 / 角色 / 属性查找(多候选如实返回) |
-| 定位 | `select_node` | 设置当前节点(Selected Node) |
-| 定位 | `get_selected_node` | 读取当前节点与最近修改 / 新增节点 |
-| 修改 | `add_node` | 新增节点(标题 / 内容 / 角色 / 属性一次给全) |
-| 修改 | `update_node` | 修改标题 / 内容 |
-| 修改 | `delete_node` | 删除节点及子树(可撤销) |
-| 修改 | `move_node` | 移动到另一父节点(防移进自身子树) |
-| 修改 | `reorder_node` | 上移 / 下移 / 置顶 / 置底 / 指定位置 |
-| 修改 | `change_role` | 修改角色(自动裁剪不再适用的属性) |
-| 修改 | `update_property` | 设置 / 删除属性(枚举与范围校验) |
-| 历史 | `undo` | 撤销最近一次修改(可连续) |
-| 历史 | `save_document` | 手动保存(自动保存默认开启) |
-| 完整事务 | `create_document` | 从完整结构新建文档并自动避开同名文件 |
-| 完整事务 | `replace_document` | 整篇整理,一次保存并可整体撤销 |
-| 完整事务 | `apply_document_patch` | 多项局部变化一次原子提交 |
+Markdown 保存业务内容；配套文件主要保留稳定节点编号与状态。删除后仍能解析正文，但跨会话编号连续性可能丢失，建议一同备份。
 
-节点引用格式:`node_007` / 标题(先精确后包含)/ `@selected` / `@last_edited` / `@last_created` / `@root`,配合 `occurrence`(第几个,从 1 起;负数从末尾计数)与相对定位(`previous_sibling` 等)。歧义时绝不猜选。
+## 更多文档
 
-### 捆绑技能 structured-document
-
-技能是模型侧「中文自然语言 → 工具调用」的映射说明:指代表、工具选择、歧义规则、错误应对。技能**只做映射,不承担业务逻辑**——角色合法性、属性校验、歧义检测全部由内核与工具层强制执行,说错会被结构化错误码如实拒绝,不会污染文档。
-
-## 当前文件集成
-
-插件刻意不做文件树 / 文件选择 / 文件切换。会话的"当前文件"经 `CurrentFileProvider` 接缝注入(见 [`src/plugin/current-file.ts`](src/plugin/current-file.ts)):
-
-- 插件对外提供 `ctx.structuredDocument`,其可写内存存储允许集成方(如侧边栏 / 编辑器插件)通过 `setCurrentFile(sessionId, path)` 推送当前文件变化;
-- `config.currentFile` 提供静态兜底(调试用),该字段只在**组装层**解析,设置页无法覆盖它(见上节「配置」);
-- 未注入提供者时,工具返回 `NO_CURRENT_FILE`,引导用户先打开文档。
-
-当前集成服务已实现,见 [`src/integration/service.ts`](src/integration/service.ts);工作台与文档视图协调文件绑定,文件树仍由外部插件负责(见 SPEC F007)。
-
-## 文档
-
-以下文档均为中文:
-
-| 文档 | 内容 |
-|---|---|
-| [docs/usage.md](docs/usage.md) | 使用手册:状态、指代、歧义、撤销、保存 |
-| [docs/architecture.md](docs/architecture.md) | 架构与设计决策(管线、sidecar、当前文件集成) |
-| [docs/ir.md](docs/ir.md) | 文档 IR:节点 / 角色 / 属性 / 元数据 |
-| [docs/tools.md](docs/tools.md) | 17 个工具的参数与结果格式 |
-| [docs/profiles.md](docs/profiles.md) | 三类模板的角色与属性表 |
-| [docs/skill.md](docs/skill.md) | SKILL.md 的装载、结构与映射规则 |
-| [docs/release-checklist.md](docs/release-checklist.md) | 发布检查(对照需求 28 条验收标准) |
-
-## 开发
-
-```sh
-npm install
-npm run typecheck   # 类型检查
-npm test            # vitest(单元 / 集成 / 场景 / 端到端)
-npm run build       # 构建到 lib/
-```
-
-测试分层:`tests/unit/`(IR、Markdown 适配器、内核、SKILL 装载)、`tests/integration/`(17 个工具经真实 `defineTool` 管线的集成行为)、`tests/scenarios/`(会议纪要 / 项目管理 / 思路整理三场景端到端:多轮中文指代、歧义、撤销、非法输入、保存失败、外部修改)、`tests/e2e/`(真实 cordis + 真实 SkillRegistry:SKILL 与工具随插件安装 / 卸载的生命周期)。
-
-## 许可
-
-MIT,见 [LICENSE](LICENSE)。
+- [使用指南](docs/usage.md)、[三种模板](docs/profiles.md)。
+- [工具参考](docs/tools.md)、[捆绑技能](skills/structured-document/SKILL.md)。
+- [当前规格](docs/SPEC.md)、[更新记录](CHANGELOG.md)、[架构](docs/architecture.md)。

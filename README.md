@@ -1,163 +1,78 @@
 **English** | [简体中文](README.zh-CN.md)
 
-当前功能与验收以 [docs/SPEC.md](docs/SPEC.md) 为入口；原始需求保留为历史来源，技术契约见规格内的文档索引。功能任务先改规格与相关技术契约，用户明确确认该版文档后再开发；已确认同一版不重复询问。Bug 按已有且不变的预期查源码修复。
-
-
 # dsh-structured-document
 
-A DSH (DeepSeek Harness) plugin that gives agents a structured document model for **meeting notes, project management, and idea boards**, so they can read, locate, modify, and reorganize documents through ordinary Chinese natural language — deterministically, instead of guessing at raw Markdown.
+Organize Markdown into nodes and a hierarchy so an Agent can locate, edit, and restructure content during a discussion, with undo when needed.
 
-## What problem does it solve
+## What you can do
 
-When an agent edits Markdown directly, three things tend to break:
-
-- **References go stale** — "the one I just added", "the previous item", "the second one" have no stable meaning without a document model.
-- **Structure gets damaged** — heading levels, list nesting, and ordering get mangled by trial-and-error edits.
-- **Mistakes cannot be undone** — there is no per-step undo.
-
-This plugin layers a structured document IR over plain Markdown and turns those three problems into deterministic operations:
-
-- Every node has a **stable ID** (`node_001`, `node_002`, …) that stays valid after the node is moved or renamed;
-- Every mutation runs through a pipeline — **structure validation → auto-save → revision bump → state update** — and rolls back to the pre-operation snapshot if any step fails;
-- Every step is **undoable**, and Chinese referring expressions ("这个 / 刚才那个 / 刚加的 / 上一条 / 第二个") have precise, documented semantics.
-
-**Boundary:** the plugin does *not* provide a file tree, a file picker, or file switching — the "current file" of a session is injected by the runtime (see [Current-file integration](#current-file-integration)).
-
-## Features
-
-- **Stable node IDs** — IDs are assigned when a document is parsed and never change afterwards; the ID counter is monotonic, so an undo never reuses an ID. The root is always `node_001` (holds the document title, cannot be deleted or moved).
-- **Deterministic mutation pipeline** — every write goes through snapshot → mutate working copy → structure validation → persist (revision +1, full business data serialized back to Markdown, atomic temp-file write, sidecar refresh) → state update + undo snapshot. Validation or Markdown-save failure rolls the document back; a later sidecar failure preserves the saved Markdown and returns sidecarSaved=false.
-- **Undo everything** — each successful mutation (including `undo` itself) pushes a snapshot onto the undo stack (default depth 100). Revisions and the ID counter only ever increase.
-- **Chinese references with defined semantics** — `@selected` (this one), `@last_edited` (just edited), `@last_created` (just added), `@root` (whole document), `occurrence` (second / third / last of same-named nodes), and relative positioning (`previous_sibling` / `next_sibling` / `parent` / `first_child` / `last_child`).
-- **Markdown is the source of truth (sidecar v2)** — the document profile, node roles, and business properties (owner / status / due date / progress) are written back into *visible* Markdown: the profile goes into YAML front matter (`dsh_profile:`), and each node's role and properties are rendered as a small table under a `<!-- dsh:node-properties -->` marker (headers are in Chinese: 类型 / 负责人 / 状态 / 截止日期 / 进度). The `.sdoc.json` sidecar only stores stable node IDs and session state (selected / last edited / last created). Deleting the sidecar loses nothing but cross-session ID continuity — the full business structure is recovered from Markdown.
-- **v1 sidecar compatibility** — legacy v1 sidecars remain readable; the document is migrated to v2 on its *first business modification* (a mere selection does not overwrite a v1 sidecar early).
-- **Never guesses on ambiguity** — when a title matches several nodes, the tool returns `MULTIPLE_NODES_FOUND` with a `candidates` list (id / title / role / path). The agent must ask the user — never pick randomly.
-- **External edits win** — before every tool call the file hash is compared with the last loaded hash; if the file changed outside the session, it is re-parsed from disk (undo stack and state pointers reset).
-- **Session isolation** — one document workspace per agent session (lazy-bound to the session's current file and cwd).
-- **Bundled Chinese skill** — the `structured-document` skill ships with the package and teaches the model the exact utterance → tool-call mapping (see [Tools & skill](#tools--skill)).
+- Work with stable node IDs and meeting, project, or thinking profiles.
+- Add, edit, move, and remove nodes, and manage the roles and properties supported by the selected profile.
+- Commit a batch of changes as one validated operation, one revision, and one undo step.
+- Keep business content in readable Markdown, with node IDs and session state in a companion file.
 
 ## Installation
 
-Install as a DSH profile bundle (the package ships a `cordis.patch.yml` that is applied automatically):
+The current local version is **0.2.1**, targeting **DSH Desktop 0.2.1-rc.2**. This plugin supplies document tools and services. File browsing, visual views, and a discussion workbench are provided by separate integrations. Host requirements are in [package.json](package.json).
 
-```sh
-npm install dsh-structured-document
-```
+As checked on 2026-10-18, the default branch of the [public source repository](https://github.com/irvingzhang0512/dsh-structured-document) declares **0.1.0**. The version described here has not been pushed or publicly released. Obtain the complete prebuilt `.tgz` from the maintainer; there is no public download link for this version yet.
 
-or, via the DSH CLI:
+1. In Desktop, open **Plugins → Add plugin → Install third-party plugin** and enter the archive's absolute local path.
+2. Check the package name `dsh-structured-document` and version `0.2.1`, enable it, and restart DSH when prompted.
+3. In a session with a real workspace directory, ask the Agent to check that the document tools and the bundled `structured-document` skill are available. No separate skill installation is needed.
 
-```sh
-dsh plugin --profile <name> add dsh-structured-document@<version>
-```
-
-Requires Node.js >= 20. Peer dependencies: `@deepseek-ai/cordis` (>=4.0.2), `@deepseek-ai/dsh-tools` (>=0.1.2-rc.1), `@deepseek-ai/schemastery` (>=3.18.2).
-
-On mount the plugin automatically registers:
-
-- **17 Document Tools** (see the table below);
-- the bundled Chinese skill **`structured-document`** — `SKILL.md` ships inside the npm package (`files` includes `skills/`), is registered into `ctx.skills` as a `bundled` skill when the plugin mounts, and is unregistered automatically when the plugin unloads. **No separate skill installation step.** This lifecycle is covered by an end-to-end test (`tests/e2e/skill-install.spec.ts`) that mounts the plugin in a real cordis host with a real `SkillRegistry`.
-
-## Quick start
-
-1. Open a Markdown document in DSH (starter documents live in [`examples/`](examples/): `examples/meeting/weekly-meeting.md`, `examples/project/person-detection.md`, `examples/thinking/report-outline.md`).
-2. Just talk to the agent in Chinese:
-
-```text
-看看现在的结构                          → get_outline               (show structure)
-进入「当前算法问题」                    → select_node               (set current node)
-加一条讨论：误报集中在低功率档位        → add_node (role=discussion)
-刚才这条改成结论                        → change_role (node=@last_created, role=conclusion)
-加个待办：负责人张三，周五完成          → add_node (role=action_item, properties={owner, due_date})
-状态改成进行中                          → update_property (key=status)
-撤销                                    → undo
-```
-
-The complete utterance-to-parameter mapping lives in the skill body: [`skills/structured-document/SKILL.md`](skills/structured-document/SKILL.md).
+See the [compatibility record](docs/DSH-UPGRADE-20261017.md) for tests and isolated Desktop checks. These do not establish installation from the public source.
 
 ## Configuration
 
-Options resolve in this order — **schema default → assembly `base` → user layer** (each layer overrides the previous one):
+Start with the defaults: meeting profile for new documents, automatic saving enabled, and an undo limit of 100. You can explicitly request the project or thinking profile when creating a document.
 
-| Option | Default | Description |
+Check the component configuration in Desktop's plugin details. Assembly configuration changes require a plugin reload. The historical standalone settings card requires the older host settings service; when unavailable, the plugin still uses assembly values and defaults. Document views or a workbench normally supply the current-file binding, so you do not need to change a static path for each file. See [architecture and configuration](docs/architecture.md).
+
+## First use
+
+Open a DSH session in a real workspace and practise on a new file:
+
+1. Send:
+
+   > Use the structured-document skill to create “Discussion outline” in the workspace root, using the thinking profile, with “Goal”, “Ideas”, and “To confirm” sections. Do not overwrite existing files. Report the actual saved path.
+
+2. Check the success result, actual `.md` path, and outline. Open the file and confirm the three sections. A name collision results in another available filename.
+3. Ask: “Add ‘The review time is not confirmed’ under ‘To confirm’.” Check the reported revision and saved content.
+4. Ask: “Undo that addition.” Confirm that the new node is removed while the other sections remain.
+
+Install the document-view plugin for visual navigation, or the workbench to keep a target fixed while browsing references. Existing files must be bound through an integration or maintainer configuration; opening a file in an external editor does not bind it to this plugin.
+
+## Common tasks
+
+| Task | Ask the Agent | Result |
 |---|---|---|
-| `defaultProfile` | `meeting` | Scenario profile used when a document is loaded with no sidecar history: `meeting` / `project` / `thinking`. |
-| `autoSave` | `true` | Persist to disk immediately after each validated mutation (temp file + atomic rename). When disabled, use `save_document` to save manually. |
-| `currentFile` | `''` | Optional static current-file binding (absolute path, or relative to the session cwd). Empty means the runtime provides it. |
-| `maxUndoSteps` | `100` | Undo stack depth. |
+| Inspect structure | “Show the current document outline” | Sections and hierarchy |
+| Rename a section | “Rename ‘To confirm’ to ‘To verify’” | Updated title with the same node ID |
+| Change hierarchy | “Move the node just added under ‘Goal’” | A validated node move |
+| Apply several changes | List the changes and request one combined operation | One save and revision, undoable together |
 
-The **assembly layer** is the `config` block of this plugin's row (e.g. in `cordis.patch.yml`); definitions live in [`src/plugin/config.ts`](src/plugin/config.ts).
+## Boundaries
 
-`defaultProfile`, `autoSave` and `maxUndoSteps` are also editable per user in **Settings → Plugins → Plugin configuration**, and a value saved there **takes precedence over the assembly value** (namespace `dsh-structured-document`, `applies: 'live'` — it takes effect immediately, no restart). Each field there shows an "overridden" badge and can be reset to inherit the assembly value again. Out-of-range values are rejected by the schema instead of silently falling back to a default.
+- New files and transactional targets are constrained to the session workspace; the destination directory must exist. Supported documents use `.md` or `.markdown`.
+- Ambiguous titles return candidates. The Agent must clarify instead of guessing what “this one” means without a unique selection.
+- Automatic saving is enabled by default. A companion `.sdoc.json` failure is reported separately from a successful Markdown save; it does not replace the document body.
+- External edits trigger a reload and reset the old undo stack and related state.
+- This plugin has no file tree or standalone file picker.
+- Further three-scenario workflows and collaboration changes remain proposed or unimplemented in [SPEC](docs/SPEC.md); they are not features delivered by this README update.
 
-`currentFile` **is not on that card and not in the settings namespace schema** — it is the external integration seam (who supplies "the current file"), so it is configurable **only in the assembly layer**. The current file at runtime is still decided by `CurrentFileProvider` / the workbench binding; the static value is only a fallback. The settings service is a soft dependency: when it is absent the plugin still mounts, its tools and skill keep working, the card is simply not rendered, and the assembly config applies.
+## Troubleshooting
 
-## Tools & skill
+### No current file
 
-### Document Tools (17)
+Create a document in the current session, or bind an existing file using the document view or workbench. Check the actual bound path before editing. Merely seeing a file in a browser does not mean the document kernel has opened it.
 
-All tools share one result envelope — `{ success, action, message, revision?, ... }` on success, `{ success: false, error, message, candidates? }` on failure — and every mutation is auto-saved and undoable. Result messages are in Chinese and include `markdownUpdated` / `sidecarSaved` flags so the model can tell the user exactly what was persisted.
+### What happens if the companion file is removed?
 
-| Group | Tool | Purpose |
-|---|---|---|
-| Read | `get_document` | Full document: tree, roles, properties, state |
-| Read | `get_outline` | Outline: levels / roles / child counts |
-| Read | `find_node` | Search by keyword / role / property (returns all candidates) |
-| Locate | `select_node` | Set the current node (Selected Node) |
-| Locate | `get_selected_node` | Read the current node plus last edited / last created |
-| Modify | `add_node` | Add a node (title / content / role / properties in one call) |
-| Modify | `update_node` | Change title / content |
-| Modify | `delete_node` | Delete a node and its subtree (undoable) |
-| Modify | `move_node` | Move under another parent (cannot move into its own subtree) |
-| Modify | `reorder_node` | Up / down / top / bottom / explicit position |
-| Modify | `change_role` | Change role (properties the new role does not support are removed) |
-| Modify | `update_property` | Set or remove a property (enum & range validated) |
-| History | `undo` | Undo the last mutation (repeatable) |
-| History | `save_document` | Manual save (auto-save is on by default) |
-| Transaction | `create_document` | Create a document with safe filename handling |
-| Transaction | `replace_document` | Replace the whole document in one undoable transaction |
-| Transaction | `apply_document_patch` | Apply a batch of changes in one validated transaction |
+Markdown preserves the business content. The companion file primarily preserves stable IDs and state; removing it can lose ID continuity across sessions. Back up both files together.
 
-Node references: `node_007` / title text (exact first, then substring) / `@selected` / `@last_edited` / `@last_created` / `@root`, combined with `occurrence` (which one, 1-based; negative counts from the end) and `relative` positioning. Ambiguity is never resolved by guessing.
+## More documentation
 
-### Bundled skill `structured-document`
-
-The skill is the model-side map from Chinese natural language to tool calls: referring expressions, tool selection, ambiguity rules, and error handling. It is a pure mapping layer — role legality, property validation, and ambiguity detection are enforced by the kernel and tools, so a wrong utterance is rejected with a structured error code instead of corrupting the document.
-
-## Current-file integration
-
-The plugin deliberately does not implement file-tree, file-picking, or file-switching behavior. Each session's current file comes from a `CurrentFileProvider` seam (see [`src/plugin/current-file.ts`](src/plugin/current-file.ts)):
-
-- the plugin provides `ctx.structuredDocument`, whose writable in-memory store lets an integration (e.g., a sidebar/editor plugin) push current-file changes via `setCurrentFile(sessionId, path)`;
-- `config.currentFile` provides a static fallback for debugging; it is resolved **only in the assembly layer**, so the settings page cannot override it (see "Configuration" above);
-- if no provider is attached, tools return `NO_CURRENT_FILE` and guide the user to open a document first.
-
-The current integration service is implemented in [`src/integration/service.ts`](src/integration/service.ts); the workbench and document-view plugins coordinate file binding. File-tree ownership remains external (see SPEC F007).
-
-## Documentation
-
-The detailed docs are written in Chinese:
-
-| Doc | Contents |
-|---|---|
-| [docs/usage.md](docs/usage.md) | User manual: state, references, ambiguity, undo, saving |
-| [docs/architecture.md](docs/architecture.md) | Architecture & design decisions (pipeline, sidecar, current-file integration) |
-| [docs/ir.md](docs/ir.md) | Document IR: nodes / roles / properties / metadata |
-| [docs/tools.md](docs/tools.md) | The 17 tools: parameters and result formats |
-| [docs/profiles.md](docs/profiles.md) | Role & property tables for the three profiles |
-| [docs/skill.md](docs/skill.md) | How SKILL.md is loaded, structured, and mapped |
-| [docs/release-checklist.md](docs/release-checklist.md) | Release checklist (against the 28 acceptance criteria) |
-
-## Development
-
-```sh
-npm install
-npm run typecheck   # type check
-npm test            # vitest (unit / integration / scenario / e2e)
-npm run build       # build to lib/
-```
-
-Test layers: `tests/unit/` (IR, Markdown adapter, kernel, skill loading), `tests/integration/` (the 17 tools through the real `defineTool` pipeline), `tests/scenarios/` (end-to-end Chinese sessions for all three profiles: multi-turn references, ambiguity, undo, invalid input, save failure, external edits), and `tests/e2e/` (real cordis + real SkillRegistry: skill and tool lifecycle across plugin mount/unmount).
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+- [User guide](docs/usage.md), [profiles](docs/profiles.md).
+- [Tool reference](docs/tools.md), [bundled skill](skills/structured-document/SKILL.md).
+- [Current specification](docs/SPEC.md), [changelog](CHANGELOG.md), [architecture](docs/architecture.md).
