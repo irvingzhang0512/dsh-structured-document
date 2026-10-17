@@ -17,5 +17,5 @@
       # loader 模式下 entry options 才是权威 inject（cordis-plugin-loader
       # 只读 entry.options.inject，不读模块导出的 `export const inject`）。
       # 与 src/index.ts 的 inject 保持一致。
-      inject: [tools, skills, sessions]
+      inject: [tools, skills, sessions, sessionController]
       config: {}

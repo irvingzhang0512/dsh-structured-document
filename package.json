@@ -1,6 +1,6 @@
 {
   "name": "dsh-structured-document",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DSH 结构化文档插件:为 DSH 提供统一的结构化文档模型(IR)、文档状态、节点操作 Tool 与中文自然语言 Skill,使 Agent 能通过正常中文稳定地读取、定位、修改和重组会议纪要、项目管理、思路整理等结构化文档。",
   "type": "module",
   "main": "./lib/index.js",
@@ -29,7 +29,8 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": "0.2.1-rc.2"
   },
   "dsh": {
     "bundle": {
@@ -62,22 +63,26 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.2 <5.0.0",
-    "@deepseek-ai/dsh-tools": ">=0.1.2-rc.1 <0.2.0",
-    "@deepseek-ai/schemastery": ">=3.18.2 <4.0.0",
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "3.18.5",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {},
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
-    "@deepseek-ai/schemastery": "^3.18.2",
-    "@types/node": "^24.0.0",
-    "@types/react": "^18.3.1",
-    "react": "^18.2.0",
-    "tsdown": "^0.22.2",
-    "typescript": "^5.8.0",
-    "vitest": "^4.1.8"
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-skill": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "3.18.5",
+    "@types/node": "24.19.2",
+    "@types/react": "18.3.31",
+    "react": "18.3.1",
+    "tsdown": "0.23.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/irvingzhang0512/dsh-structured-document.git"
   }
 }

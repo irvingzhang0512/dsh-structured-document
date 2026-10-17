@@ -207,8 +207,9 @@ describe('F011 卡片 chrome 与折叠头部', () => {
     // 构建配置从 package.json 读取版本并 define 注入。
     expect(build).toContain('__DSD_VERSION__')
     expect(build).toContain('package.json')
-    // 当前包版本按 F011 约定保持 0.2.0。
-    expect(pkg.version).toBe('0.2.0')
+    // 升级包版本后，实际客户端产物仍需显示同一个构建期版本。
+    const bundle = await readFile(new URL('../../lib/client.js', import.meta.url), 'utf8')
+    expect(bundle).toContain(JSON.stringify(pkg.version))
   })
 })
 

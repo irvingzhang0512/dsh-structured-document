@@ -30,6 +30,7 @@ import { registerSkill } from './plugin/skill.ts'
 import { registerStructuredDocumentTools } from './tools/register-tools.ts'
 import { WorkspaceRegistry, type KernelOptions } from './state/kernel.ts'
 import { StructuredDocumentServiceImpl } from './integration/service.ts'
+import { sessionDirectory } from './session-directory.ts'
 import { NodeFsStorage } from './storage/storage.ts'
 
 /** 插件标识(cordis.yml 行)。 */
@@ -43,7 +44,7 @@ export const name = 'dsh-structured-document'
  * 用 `ctx.inject(['settings'], …)` 在服务可用时接入(F010;见 docs/architecture.md
  * 的「配置契约」)。
  */
-export const inject = ['tools', 'skills', 'sessions']
+export const inject = ['tools', 'skills', 'sessions', 'sessionController']
 
 export { Config }
 export type { StructuredDocumentService, DocumentSnapshot } from './integration/service.ts'
@@ -51,15 +52,7 @@ export type { WorkspaceChange } from './state/kernel.ts'
 
 /** 会话 cwd 的防御式读取(会话行缺失时退回进程 cwd)。 */
 function sessionCwd(ctx: Context): (sessionId: string) => Promise<string | null> {
-  return async (sessionId: string) => {
-    try {
-      const cwd = ctx.sessions.get(sessionId)?.header?.cwd
-      if (typeof cwd === 'string' && cwd !== '') return cwd
-    } catch {
-      // sessions 服务不可用时退回进程 cwd。
-    }
-    return process.cwd()
-  }
+  return sessionId => sessionDirectory(ctx, sessionId)
 }
 
 /**

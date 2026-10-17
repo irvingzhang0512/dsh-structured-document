@@ -42,6 +42,7 @@ async function mountHost() {
   const ctx = new Context()
   const tools = new FakeTools(ctx)
   new FakeSessions(ctx)
+  ctx.provide('sessionController', { inspect: async () => ({ meta: { cwd: process.cwd() } }) })
   new SkillRegistry(ctx)
   // 与 DSH 宿主一致:对象插件 + Config 校验;await 确保 fiber 完全启动。
   const fiber = ctx.plugin(plugin as never, {

@@ -30,6 +30,7 @@ export interface SessionsService {
 
 /** 本插件宿主侧看到的 Context。 */
 export interface StructuredDocumentContextShape {
+  sessionController?: import('./session-directory.ts').SessionDirectoryContext['sessionController']
   tools: ToolsService
   skills: SkillsService
   sessions: SessionsService
