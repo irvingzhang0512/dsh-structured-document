@@ -128,3 +128,24 @@
 - 2026-10-10：新增 F010（设置页插件配置卡与配置分层），配置契约同步到 [architecture.md](architecture.md) 的「配置契约」。本版为待用户确认的文档增量，未改动源码、测试或运行配置，未提高包版本。
 - 2026-10-10（实现收尾）：F010 按用户确认的该版文档实现并验证：实现状态改「已实现」，补实现依据与本次真实验证记录，包版本提高到 0.2.0；未变更 F001–F009 的规格语义。同步 README／README.zh-CN／usage 的配置分层说明。
 - 2026-10-10（F011）：新增 F011（设置卡外观对齐宿主卡片），把 F010 的设置卡从"自绘扁平盒子"改为按宿主 `PluginCard` 外观语法绘制。**三项取舍经用户确认**：① 保存模型保持"草稿 + 右下角保存"（不改 F010 的 `settingsScope` set／unset／mutate 与 revision 栅栏）；② 本仓库无 `dock` 项，`自动保存` 用开关（分段控件配方保留在 §8，本插件的布尔项用 `role=switch` 更贴合宿主观感）；③ 头部带插件版本号，版本号由构建期从 `package.json` 注入而非硬编码。**外观数值以宿主为准**：卡片 chrome 采用宿主 `PluginCard` 的真实规则（`.5px` + `--dsw-alias-border-l4` + `radius:16px`，展开态 `bg-layer-2` + `label-dimmed`），插件市场把同一规则近似成 `1px` + `border-l2` + `radius:12px`，本插件不采用该近似（本插件卡片与宿主内置卡片同页并列，比对基准是宿主）。本次为外观与文案变更，未变更 F010 的配置语义与 F001–F009 的规格语义；包版本保持 0.2.0（该版本尚未推送发布，外观变更并入同一条目）。
+
+## F015 插件列表与详情的显示名称
+
+- 文档版：office-suite-implementation-20261018-v1；用户在本会话完整引用该实施方案并明确 PLEASE IMPLEMENT THIS PLAN，确认同版名称、简介、版本、组合和验收。原有其他待确认功能不在授权范围。
+- 实现状态：已实现；验证另记。
+- 场景与预期：中文显示「Irving · 结构化文档」，英文显示「Irving · Structured Documents」；保留完整包名 dsh-structured-document 与全部运行标识。
+- 中文简介：按节点和层级组织文档，支持 Agent 在讨论中通过工具定位、修改和重组内容。
+- 英文简介：Organize documents by nodes and hierarchy so Agents can locate, edit, and restructure content through tools during a discussion.
+- 技术契约：导出 locale/en.json 与 locale/zh.json 的 meta.title／meta.description；exports["./locale/*.json"] 指向对应资源，files 分发 locale，package.description 使用中文简介兜底。客户端设置／详情标题同步；功能导航不强制改名。
+- 验收：目标宿主从固定 tgz 解析两语言名称／简介，原生列表、详情、成员行一致；无新增布局溢出，原工具／配置／存储保持。新套件成员在隔离验证后交付日常。
+
+## F016 统一版本与固定交付
+
+- 实现状态：已实现；依据同版已确认实施方案。
+- 包版本统一为 0.2.1-rc.2+rev.1；宿主与官方 peers 仍为实际要求的原版本。完整字符串、源码 SHA 和产物散列同时校验，不能使用忽略 build metadata 的 SemVer 判断修订升级。
+- Chatty／Automation 的原比较接口保留，规范后缀改为 +rev.N，N 为无前导零的安全正整数；跨官方基线拒绝。旧版本仅由明确迁移映射及原锁／散列接管，不能把旧后缀 .1 与 rev.1 当作无需更新。
+- 本包可独立安装，也可由 dsh-office-bundle 携带；套件采用 cordis:group 保留本包原条目 id、config、inject。总开关卸载全部成员，重开恢复各自 disabled；原单独 Bundle 停用选择在接管时迁移为本条目 disabled。独立入口与套件入口不能重复组装。
+- 配置／数据：没有业务字段改名或存储搬迁；套件接管仅处理组合选择与既有 disabled 字段，保留未知配置、工具引用、文档和凭据。迁移 CAS／备份／冲突／回滚由根维护入口执行。
+- 验收：完整产物、版本迁移、原功能回归；成员还需唯一实例、旧配置命中、总／子开关与业务资料保留。具体记录见 VERIFICATION-OFFICE-20261018.md（完成后生成）。
+
+- 本次自动验证：144项测试通过，类型／构建或Chatty客户端／lint通过；原生固定包与日常交付尚待本次后续验收，不能复用历史结果。

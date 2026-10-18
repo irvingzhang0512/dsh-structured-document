@@ -1,6 +1,6 @@
 [English](README.md) | **简体中文**
 
-# dsh-structured-document
+# Irving · 结构化文档
 
 按节点和层级组织 Markdown 文档，让 Agent 在讨论中通过工具定位、修改和重组内容，并在需要时撤销修改。
 
@@ -13,12 +13,12 @@
 
 ## 安装
 
-当前本地版本 **0.2.1**，适配 **DSH Desktop 0.2.1-rc.2**。本插件提供文档工具和服务；文件浏览、可视化与讨论工作台由对应插件提供，按需要另装。宿主依赖见 [package.json](package.json)。
+当前本地版本 **0.2.1-rc.2+rev.1**，适配 **DSH Desktop 0.2.1-rc.2**。本插件提供文档工具和服务；文件浏览、可视化与讨论工作台由对应插件提供，按需要另装。宿主依赖见 [package.json](package.json)。
 
 截至 2026-10-18，[公开源码仓库](https://github.com/irvingzhang0512/dsh-structured-document)默认分支包版本为 **0.1.0**，本页版本尚未公开推送或发布。请先向维护者获取完整预构建 `.tgz`，目前没有本版公开下载链接。
 
 1. 在「插件 → 添加插件 → 安装第三方插件」填写安装包的本机绝对路径。
-2. 核对包名 `dsh-structured-document` 和版本 `0.2.1`，启用后按提示重启 DSH。
+2. 核对包名 `dsh-structured-document` 和版本 `0.2.1-rc.2+rev.1`，启用后按提示重启 DSH。
 3. 在有工作目录的会话中，让 Agent 检查结构化文档工具和 `structured-document` 技能是否可用。技能随插件注册，无需手动复制。
 
 本版测试与隔离 Desktop 验证见 [兼容记录](docs/DSH-UPGRADE-20261017.md)，不代表已经从公网完成本版安装。
@@ -76,3 +76,8 @@ Markdown 保存业务内容；配套文件主要保留稳定节点编号与状�
 - [使用指南](docs/usage.md)、[三种模板](docs/profiles.md)。
 - [工具参考](docs/tools.md)、[捆绑技能](skills/structured-document/SKILL.md)。
 - [当前规格](docs/SPEC.md)、[更新记录](CHANGELOG.md)、[架构](docs/architecture.md)。
+
+
+## 办公套件
+
+本组件也包含在 **Irving · 办公套件**（`dsh-office-bundle`）中，版本 **0.2.1-rc.2+rev.1**。组合使用时安装套件；单独使用时安装本包，避免同时启用两种组合入口。套件总开关停用四个组件，重新开启保留各自子开关；停用或卸载不删除文档和设置。已有安装通过维护者的固定包接管流程切换。

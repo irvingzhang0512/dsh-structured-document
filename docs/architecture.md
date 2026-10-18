@@ -164,3 +164,7 @@ SKILL.md 是"中文自然语言 → 工具参数"的映射规范(指代表、工
 | 端到端用例（解析顺序、schema 拒绝、软依赖在场/缺失/摘除、用户覆盖生效） | [`../tests/unit/settings-config.spec.ts`](../tests/unit/settings-config.spec.ts) |
 
 **惰性校验与读取侧兜底**：宿主 provider 在 `register` 时不解析 `base`，第一次 `get()` 才把 base 与用户层合并后交给 schema。因此越界的组装值（如 `defaultProfile: 'weekly'`）报错点在**读取**而非注册。`getConfig()` 经 `readLiveConfig()` 读取：解析抛错时告警一次并退回组装配置，插件照常挂载；越界值不静默改成 schema 默认值，仍由内核按原有语义明确报错（装载文档时 `requireProfile` 抛“场景模板不合法”）。注册阶段抛错的 provider 也保留同样的回退分支。
+
+## 2026-10-18 统一展示与套件交付契约
+
+依据用户已确认的 office-suite-implementation-20261018-v1。Irving · 结构化文档／Irving · Structured Documents，包 dsh-structured-document 统一 0.2.1-rc.2+rev.1。展示资源通过 locale 导出提供；原条目 id、服务／工具／客户端身份、配置及存储保持。组合分组为 dsh-office-bundle-members；保留本成员原始 patch 行，用户覆盖继续按原 id 命中；子开关不因总开关恢复而重置。版本按完整字符串与固定散列核对；本节不授权原先待确认的业务扩展。

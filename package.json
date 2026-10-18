@@ -1,7 +1,7 @@
 {
   "name": "dsh-structured-document",
-  "version": "0.2.1",
-  "description": "DSH 结构化文档插件:为 DSH 提供统一的结构化文档模型(IR)、文档状态、节点操作 Tool 与中文自然语言 Skill,使 Agent 能通过正常中文稳定地读取、定位、修改和重组会议纪要、项目管理、思路整理等结构化文档。",
+  "version": "0.2.1-rc.2+rev.1",
+  "description": "按节点和层级组织文档，支持 Agent 在讨论中通过工具定位、修改和重组内容。",
   "type": "module",
   "main": "./lib/index.js",
   "types": "./lib/types/index.d.ts",
@@ -15,7 +15,8 @@
       "default": "./lib/client.js"
     },
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
@@ -26,7 +27,8 @@
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "locale"
   ],
   "engines": {
     "node": ">=20",

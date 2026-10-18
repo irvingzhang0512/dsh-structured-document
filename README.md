@@ -1,6 +1,6 @@
 **English** | [简体中文](README.zh-CN.md)
 
-# dsh-structured-document
+# Irving · 结构化文档
 
 Organize Markdown into nodes and a hierarchy so an Agent can locate, edit, and restructure content during a discussion, with undo when needed.
 
@@ -13,12 +13,12 @@ Organize Markdown into nodes and a hierarchy so an Agent can locate, edit, and r
 
 ## Installation
 
-The current local version is **0.2.1**, targeting **DSH Desktop 0.2.1-rc.2**. This plugin supplies document tools and services. File browsing, visual views, and a discussion workbench are provided by separate integrations. Host requirements are in [package.json](package.json).
+The current local version is **0.2.1-rc.2+rev.1**, targeting **DSH Desktop 0.2.1-rc.2**. This plugin supplies document tools and services. File browsing, visual views, and a discussion workbench are provided by separate integrations. Host requirements are in [package.json](package.json).
 
 As checked on 2026-10-18, the default branch of the [public source repository](https://github.com/irvingzhang0512/dsh-structured-document) declares **0.1.0**. The version described here has not been pushed or publicly released. Obtain the complete prebuilt `.tgz` from the maintainer; there is no public download link for this version yet.
 
 1. In Desktop, open **Plugins → Add plugin → Install third-party plugin** and enter the archive's absolute local path.
-2. Check the package name `dsh-structured-document` and version `0.2.1`, enable it, and restart DSH when prompted.
+2. Check the package name `dsh-structured-document` and version `0.2.1-rc.2+rev.1`, enable it, and restart DSH when prompted.
 3. In a session with a real workspace directory, ask the Agent to check that the document tools and the bundled `structured-document` skill are available. No separate skill installation is needed.
 
 See the [compatibility record](docs/DSH-UPGRADE-20261017.md) for tests and isolated Desktop checks. These do not establish installation from the public source.
@@ -76,3 +76,8 @@ Markdown preserves the business content. The companion file primarily preserves 
 - [User guide](docs/usage.md), [profiles](docs/profiles.md).
 - [Tool reference](docs/tools.md), [bundled skill](skills/structured-document/SKILL.md).
 - [Current specification](docs/SPEC.md), [changelog](CHANGELOG.md), [architecture](docs/architecture.md).
+
+
+## 办公套件
+
+本组件也包含在 **Irving · 办公套件**（`dsh-office-bundle`）中，版本 **0.2.1-rc.2+rev.1**。组合使用时安装套件；单独使用时安装本包，避免同时启用两种组合入口。套件总开关停用四个组件，重新开启保留各自子开关；停用或卸载不删除文档和设置。已有安装通过维护者的固定包接管流程切换。

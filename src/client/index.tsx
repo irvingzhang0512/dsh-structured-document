@@ -240,7 +240,7 @@ export function SettingsCard({ scope, initiallyOpen = false }: {
       >
         <span className="dsd-head-text">
           <span className="dsd-name">
-            结构化文档<span className="dsd-version"> v{PLUGIN_VERSION}</span>
+            Irving · 结构化文档<span className="dsd-version"> v{PLUGIN_VERSION}</span>
           </span>
           <span className="dsd-desc">默认场景模板、自动保存与撤销深度;此处保存的用户值优先于组装配置。</span>
         </span>
