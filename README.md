@@ -1,6 +1,6 @@
 **English** | [简体中文](README.zh-CN.md)
 
-# Irving · 结构化文档
+# Irving · Structured Documents
 
 Organize Markdown into nodes and a hierarchy so an Agent can locate, edit, and restructure content during a discussion, with undo when needed.
 
@@ -78,6 +78,8 @@ Markdown preserves the business content. The companion file primarily preserves 
 - [Current specification](docs/SPEC.md), [changelog](CHANGELOG.md), [architecture](docs/architecture.md).
 
 
-## 办公套件
+## Office Suite
 
-本组件也包含在 **Irving · 办公套件**（`dsh-office-bundle`）中，版本 **0.2.1-rc.2+rev.1**。组合使用时安装套件；单独使用时安装本包，避免同时启用两种组合入口。套件总开关停用四个组件，重新开启保留各自子开关；停用或卸载不删除文档和设置。已有安装通过维护者的固定包接管流程切换。
+This component is also included in **Irving · Office Suite** (`dsh-office-bundle`), version **0.2.1-rc.2+rev.1**. Use the suite for a combined installation, or this package for a standalone installation. Do not enable both composition entries. The suite switch stops all four components; turning it back on preserves each component’s own switch. Disabling or uninstalling retains documents and settings. When migrating an existing installation, use the maintainer’s fixed-package migration rather than adding another copy.
+
+Current naming, version, and Office Suite verification: [2026-10-18 verification](docs/VERIFICATION-OFFICE-20261018.md).
