@@ -1,5 +1,9 @@
 # 架构与设计决策
 
+## Desktop 工作流目标契约（待确认／待实现）
+
+新增 [discussion-desktop-workflows-20261014-v1](DESKTOP-WORKFLOWS-20261014.md)，承接 SPEC F012–F014：宿主固定绑定 lease、三个即时 Config 字段、实际 entry／configForms、配置迁移、17 工具的模型投影与三场景无损回归。本版相关预期优先于下面旧升级草案与旧 settings namespace 说明；具体文件待确认，未改运行实现。
+
 目标版技术契约：见 [DSH 0.2.0-rc.2 升级适配](DSH-UPGRADE-20261011.md)（`dsh-upgrade-20261011-v1`，待确认／待实现）。本文原宿主 API 和设置存储说明保留作为当前组合基线；目标版采用该补充中的接口、配置迁移与验收边界，不将旧 API 继续当作目标版可用接口。
 
 本文记录 dsh-structured-document 的模块划分、数据流,以及实现过程中做出的设计决策(含与需求假设不一致处的取舍)。
@@ -164,6 +168,7 @@ SKILL.md 是"中文自然语言 → 工具参数"的映射规范(指代表、工
 | 端到端用例（解析顺序、schema 拒绝、软依赖在场/缺失/摘除、用户覆盖生效） | [`../tests/unit/settings-config.spec.ts`](../tests/unit/settings-config.spec.ts) |
 
 **惰性校验与读取侧兜底**：宿主 provider 在 `register` 时不解析 `base`，第一次 `get()` 才把 base 与用户层合并后交给 schema。因此越界的组装值（如 `defaultProfile: 'weekly'`）报错点在**读取**而非注册。`getConfig()` 经 `readLiveConfig()` 读取：解析抛错时告警一次并退回组装配置，插件照常挂载；越界值不静默改成 schema 默认值，仍由内核按原有语义明确报错（装载文档时 `requireProfile` 抛“场景模板不合法”）。注册阶段抛错的 provider 也保留同样的回退分支。
+
 
 ## 2026-10-18 统一展示与套件交付契约
 

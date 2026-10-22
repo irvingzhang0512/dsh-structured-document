@@ -1,0 +1,20 @@
+schema: spec-driven
+
+context: |
+  本项目是 dsh-structured-document 独立插件仓库，使用中文维护文档。
+  唯一规格入口是 openspec/MIGRATION.md；已迁移 docs/SPEC.md 冻结只读，不再双写。
+  当前行为维护在 openspec/specs；未实现或待确认设计维护在 openspec/changes。
+  原始需求、技术历史、项目文件、examples 与业务内容原位保留，不自动改写。
+  新功能先完成 proposal/specs/design/tasks，用户明确确认本版后才改源码、测试实现或运行配置。
+  相同已确认版本不重复询问；产品语义变化重新确认；预期不变的 Bug 可直接按现行规格修复。
+  artifacts ready、validate 与任务勾选不等于批准、已实现或运行验证通过。
+  根维护仓库提供固定 OpenSpec CLI，不在此插件安装第二套依赖或生成业务运行 skills。
+
+rules:
+  specs:
+    - 保留稳定 F 编号及完整行为、边界和验收场景；正文中文，使用标准 Requirement/Scenario 与 SHALL/WHEN/THEN。
+    - 原始需求未落地项单独记录，不把历史规划当现有能力；新公共文档不复制个人项目正文或私有路径。
+  design:
+    - 接口、配置和存储变化必须说明旧值迁移、失效字段清理、完整引用、备份和并发恢复。
+  tasks:
+    - 实施前必须记录具体文档批准；实现和验证分别记账；没有证据不得勾选完成。

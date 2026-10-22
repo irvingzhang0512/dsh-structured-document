@@ -1,5 +1,7 @@
 [English](README.md) | **简体中文**
 
+> OpenSpec 文档入口：[迁移索引](openspec/MIGRATION.md)。后续开发与管理统一使用 `openspec/specs` 和 `openspec/changes`；旧 `docs/SPEC.md` 与原始需求冻结保留，个人项目资料本轮保持原样，旧文中的“可编辑规格”入口由此替代。新功能先审阅具体方案并确认，再实施与验证；历史资料不双写。
+
 # Irving · 结构化文档
 
 按节点和层级组织 Markdown 文档，让 Agent 在讨论中通过工具定位、修改和重组内容，并在需要时撤销修改。
@@ -59,7 +61,7 @@
 - 默认自动保存。Markdown 保存成功而配套 `.sdoc.json` 写入失败时，会单独反馈；配套文件不替代正文。
 - 外部编辑会触发重新读取，并重置旧撤销栈和相关状态，避免用旧状态覆盖新文件。
 - 本插件没有文件树或独立文件选择界面；切换文档由集成提供。
-- 三场景扩展和协作设计仍有待确认／待实现项，见 [当前规格](docs/SPEC.md)，不把规划中的能力当作本版功能。
+- 三场景扩展和协作设计仍有待确认／待实现项，见 [当前规格](openspec/MIGRATION.md)，不把规划中的能力当作本版功能。
 
 ## 常见问题
 
@@ -75,7 +77,7 @@ Markdown 保存业务内容；配套文件主要保留稳定节点编号与状�
 
 - [使用指南](docs/usage.md)、[三种模板](docs/profiles.md)。
 - [工具参考](docs/tools.md)、[捆绑技能](skills/structured-document/SKILL.md)。
-- [当前规格](docs/SPEC.md)、[更新记录](CHANGELOG.md)、[架构](docs/architecture.md)。
+- [当前规格](openspec/MIGRATION.md)、[更新记录](CHANGELOG.md)、[架构](docs/architecture.md)。
 
 
 ## 办公套件

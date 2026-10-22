@@ -1,5 +1,7 @@
 **English** | [简体中文](README.zh-CN.md)
 
+> OpenSpec 文档入口：[迁移索引](openspec/MIGRATION.md)。后续开发与管理统一使用 `openspec/specs` 和 `openspec/changes`；旧 `docs/SPEC.md` 与原始需求冻结保留，个人项目资料本轮保持原样，旧文中的“可编辑规格”入口由此替代。新功能先审阅具体方案并确认，再实施与验证；历史资料不双写。
+
 # Irving · Structured Documents
 
 Organize Markdown into nodes and a hierarchy so an Agent can locate, edit, and restructure content during a discussion, with undo when needed.
@@ -59,7 +61,7 @@ Install the document-view plugin for visual navigation, or the workbench to keep
 - Automatic saving is enabled by default. A companion `.sdoc.json` failure is reported separately from a successful Markdown save; it does not replace the document body.
 - External edits trigger a reload and reset the old undo stack and related state.
 - This plugin has no file tree or standalone file picker.
-- Further three-scenario workflows and collaboration changes remain proposed or unimplemented in [SPEC](docs/SPEC.md); they are not features delivered by this README update.
+- Further three-scenario workflows and collaboration changes remain proposed or unimplemented in [SPEC](openspec/MIGRATION.md); they are not features delivered by this README update.
 
 ## Troubleshooting
 
@@ -75,7 +77,7 @@ Markdown preserves the business content. The companion file primarily preserves 
 
 - [User guide](docs/usage.md), [profiles](docs/profiles.md).
 - [Tool reference](docs/tools.md), [bundled skill](skills/structured-document/SKILL.md).
-- [Current specification](docs/SPEC.md), [changelog](CHANGELOG.md), [architecture](docs/architecture.md).
+- [Current specification](openspec/MIGRATION.md), [changelog](CHANGELOG.md), [architecture](docs/architecture.md).
 
 
 ## Office Suite

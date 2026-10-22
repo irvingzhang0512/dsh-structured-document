@@ -1,8 +1,10 @@
 # AGENTS.md — AI 代理协作指引
 
+> OpenSpec 文档入口：[迁移索引](openspec/MIGRATION.md)。后续开发与管理统一使用 `openspec/specs` 和 `openspec/changes`；旧 `docs/SPEC.md` 与原始需求冻结保留，个人项目资料本轮保持原样，旧文中的“可编辑规格”入口由此替代。新功能先审阅具体方案并确认，再实施与验证；历史资料不双写。
+
 ## 开发入口与文档分工
 
-先返回根维护目录，读取 [根 AGENTS](../AGENTS.md)、[维护规范](../docs/MAINTENANCE.md) 和开发 Skill；本仓库的特殊约束仍适用。统一流程见 [文档驱动开发](../docs/DOC-DRIVEN-DEVELOPMENT.md)，当前可编辑规格见 [docs/SPEC.md](docs/SPEC.md)。
+先返回根维护目录，读取 [根 AGENTS](../AGENTS.md)、[维护规范](../docs/MAINTENANCE.md) 和开发 Skill；本仓库的特殊约束仍适用。统一流程见 [文档驱动开发](../docs/DOC-DRIVEN-DEVELOPMENT.md)，当前可编辑规格与待确认方案见 [OpenSpec 迁移索引](openspec/MIGRATION.md)。
 
 - 功能新增／修改：读取规格及其差异，先改预期和验收条件，涉及接口／配置／存储时先同步技术契约；用户确认该版文档后再改源码并验证。自然语言需求也先落入规格。
 - 文档确认：将修改后的规格／相关技术契约的链接、功能编号、行为差异与验收条件交用户审阅，等待明确确认该版文档后才能改对应源码／测试实现或运行配置；确认前可读源码、查日志／已有测试、完善文档。用户已明确要求按同一版文档实现且含义未再改变时直接继续，不重复询问；仅提出需求、保存／提交文档或沉默不算确认。确认后新增语义差异先重新确认，记录确认范围与文档依据。
@@ -18,7 +20,7 @@
 
 `dsh-structured-document` 是一个 DSH 插件:通过结构化文档 IR 与 17 个 Document Tools,让 Agent 用中文自然语言稳定地读取、定位、修改和重组结构化文档(会议纪要 / 项目管理 / 思路整理),支持"这个 / 刚才那个 / 刚加的 / 上一条 / 第二个"等中文指代,所有修改自动保存、可撤销。
 
-当前功能规格:[docs/SPEC.md](docs/SPEC.md);历史需求:`requirements.txt`(V0.1,42 章,只读);技术契约:`docs/architecture.md`。
+当前功能规格:[OpenSpec 迁移索引](openspec/MIGRATION.md);历史需求:`requirements.txt`(V0.1,42 章,只读);技术契约:`docs/architecture.md`。
 
 ## 常用命令
 
