@@ -1,5 +1,12 @@
 **English** | [简体中文](README.zh-CN.md)
 
+## Git 固定提交分发（2026-10-24）
+
+本轮按维护仓库已确认的 Windows 环境构建方案准备 GitHub 直接安装：从固定清单取得本仓库的完整 40 位提交，使用 `git+https://github.com/irvingzhang0512/dsh-structured-document.git#<完整提交>`。尖括号是待替换示例，不是可运行地址；不要使用浮动分支。该提交随源码提供 lib、patch、客户端与声明资源，安装不依赖现场编译。办公套件通过固定成员 Git 依赖提供四个组件，不重复直接安装成员。
+
+本轮固定提交须完成推送和公网安装验收后才能称为远程可安装；本地测试不能替代该结论。以下旧安装记录保留历史背景，当前维护组合以私有维护入口的固定锁为准。
+
+
 > OpenSpec 文档入口：[迁移索引](openspec/MIGRATION.md)。后续开发与管理统一使用 `openspec/specs` 和 `openspec/changes`；旧 `docs/SPEC.md` 与原始需求冻结保留，个人项目资料本轮保持原样，旧文中的“可编辑规格”入口由此替代。新功能先审阅具体方案并确认，再实施与验证；历史资料不双写。
 
 # Irving · Structured Documents

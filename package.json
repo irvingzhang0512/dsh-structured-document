@@ -49,8 +49,7 @@
     "build:client": "tsdown -c tsdown.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build:client && vitest run",
-    "test:watch": "vitest",
-    "prepack": "npm run build"
+    "test:watch": "vitest"
   },
   "keywords": [
     "dsh",

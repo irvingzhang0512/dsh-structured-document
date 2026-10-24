@@ -89,7 +89,7 @@ npm run build       # 构建到 lib/
 
 1. `npm run typecheck` 零错误;
 2. `npm test` 全部通过(以本次实际运行结果为准,新增功能必须带适当测试);
-3. 不提交构建产物(`lib/`)与临时文件(已被 `.gitignore` 覆盖);
+3. 按已确认 Git 分发提交完整 `lib/`，不提交依赖目录与临时文件;
 4. 提交信息用 UTF-8 文件 + `git commit -F <file>` 写入,避免 Windows 控制台编码把中文写坏。
 
 ## 项目边界(不要越界)
@@ -104,3 +104,7 @@ npm run build       # 构建到 lib/
 1. **Windows 编码**:严禁用 PowerShell 的 `Get-Content`/`Set-Content` 管道处理含中文的源文件(UTF-8 会被写成乱码);一律使用支持 UTF-8 的文件编辑工具;
 2. **defineTool schema 推断**:共享 schema 常量必须 `as const satisfies`,宽化会让 execute 返回类型塌缩为 `never`(详见 `docs/architecture.md` §10);
 3. **git 代理**:本机 git 全局代理指向 `172.26.128.1:7897` 时推送 GitHub 可能 408,可用 `git -c http.proxy=http://127.0.0.1:7897 push` 会话级覆盖。
+
+## 2026-10-24 Git 分发约定
+
+根 windows-personal-workspace-v2 已确认自研通过 GitHub 固定提交安装：提交完整运行产物和资源，不依赖安装期构建 hook；开发检查仍显式运行既有 typecheck／test／build 或 JS test／lint。此约定替代旧的 lib 忽略／现场 prepack 做法；不提交 node_modules，不修改业务行为。源码推送、公网安装和本地验证分别记录。
