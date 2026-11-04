@@ -108,3 +108,8 @@
 - 使用固定 OpenSpec 1.14.3 执行 validate --all --strict --no-interactive：16 项通过、零失败；git diff --check 通过。
 - 与本轮开始前逐文件 SHA-256 比较：69 个原文件字节不变；只修改 AGENTS/README 路由文件并新增 openspec 文档。已有未提交文档差异保持。
 - 新 OpenSpec Markdown 本地链接及锚点检查通过；未完成业务任务全部未勾选，没有产品测试、安装、迁移、提交或推送。
+
+
+## 2026-11-04 rc5升级增量
+
+[adapt-dsh-021-rc5 v1](changes/adapt-dsh-021-rc5/proposal.md) 承接本次固定组合适配；具体文档待确认、实现待实施、验证另记。既有编号及历史证据保持，未确认前不合入主规格。
