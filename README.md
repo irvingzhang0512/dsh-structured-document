@@ -1,5 +1,7 @@
 **English** | [简体中文](README.zh-CN.md)
 
+DSH Desktop **0.2.2-rc.3** 对应本插件 **0.2.2-rc.3+rev.1**。构建检查和交付范围见[本次适配](openspec/changes/adapt-dsh-022-rc3/review.md)。
+
 当前 0.2.2-rc.1 适配版本 **0.2.2-rc.1+rev.1**，要求 **DSH Desktop 0.2.2-rc.1**；代码检查已通过，原生／安装／试用状态分别记录。详见 [本次适配](docs/DSH-RC1-20261104.md)。以下带日期记录保留历史职责。
 
 

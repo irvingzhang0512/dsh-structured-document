@@ -1,6 +1,6 @@
 {
   "name": "dsh-structured-document",
-  "version": "0.2.2-rc.1+rev.1",
+  "version": "0.2.2-rc.3+rev.1",
   "description": "按节点和层级组织文档，支持 Agent 在讨论中通过工具定位、修改和重组内容。",
   "type": "module",
   "main": "./lib/index.js",
@@ -32,7 +32,7 @@
   ],
   "engines": {
     "node": ">=20",
-    "dsh": "0.2.2-rc.1"
+    "dsh": "0.2.2-rc.3"
   },
   "dsh": {
     "bundle": {
@@ -65,15 +65,15 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
     "@deepseek-ai/schemastery": "3.19.0",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {},
   "devDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
-    "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.3",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.3",
     "@deepseek-ai/schemastery": "3.19.0",
     "@types/node": "24.19.2",
     "@types/react": "18.3.31",
